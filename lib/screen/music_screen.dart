@@ -3,6 +3,7 @@
 import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:clone_mp/widgets/create_playlist_sheet.dart';
 import 'package:clone_mp/widgets/download_button.dart';
 import 'package:flutter/material.dart';
@@ -110,6 +111,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     if (currentSong != null) {
       _fetchLyrics(currentSong);
     }
+    
+    // Hide global mini player logic moved to MiniPlayerObserver
+
   }
 
   void _fetchLyrics(SongModel song) {
@@ -144,6 +148,10 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     _musicService.isPlayingNotifier.removeListener(_handlePlayerStateChange);
     _musicService.currentSongNotifier.removeListener(_handleSongChange);
     _rotationController.dispose();
+    
+    // Show global mini player logic moved to MiniPlayerObserver
+
+    
     super.dispose();
   }
 

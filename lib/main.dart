@@ -34,7 +34,10 @@ import 'package:clone_mp/screen/queue_screen.dart';
 import 'package:clone_mp/screen/recently_played_screen.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/screen/downloads_page.dart';
+import 'package:clone_mp/models/song_model.dart'; // Needed for SongModel in MainScreen
 
+// Global Key for Navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,8 +75,10 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
       debugPrint("AudioService initialized successfully.");
       return handler;
     } catch (e) {
-      debugPrint("Error initializing AudioService: $e");
-      rethrow;
+      debugPrint("⚠️ CRITICAL: AudioService initialization failed: $e");
+      debugPrint("Background audio notifications may not work. Check MainActivity extends AudioServiceFragmentActivity.");
+      // Return fallback handler to allow app to launch
+      return AudioPlayerHandler();
     }
   }
 
@@ -91,21 +96,14 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
           );
         }
         
-        if (snapshot.hasError) {
-           return MaterialApp(
-             debugShowCheckedModeBanner: false,
-             home: Scaffold(
-              body: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text("Error initializing audio service:\n${snapshot.error}", textAlign: TextAlign.center),
-                ),
-              ),
-            ),
-          );
+        // FALLBACK: If error, use local handler to allow app launch
+        final AudioHandler audioHandler;
+        if (snapshot.hasError || snapshot.data == null) {
+           debugPrint("AudioService Init Failed: ${snapshot.error} - Using Fallback");
+           audioHandler = AudioPlayerHandler();
+        } else {
+           audioHandler = snapshot.data!;
         }
-
-        final audioHandler = snapshot.data!;
         
         final dlService = DownloadService();
         
@@ -113,7 +111,7 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
             providers: [
               ChangeNotifierProvider(create: (_) => ThemeNotifier()),
               ChangeNotifierProvider(create: (_) => dlService..init()),
-              ChangeNotifierProvider(create: (_) => MusicService(audioHandler, dlService)),
+              ChangeNotifierProvider(create: (_) => MusicService(audioHandler, dlService)..init()),
               ChangeNotifierProvider(create: (_) => PlaylistService()),
               ChangeNotifierProvider(create: (_) => AuthService()),
               ChangeNotifierProvider(create: (_) => FollowService()),
@@ -167,7 +165,11 @@ class MyApp extends StatelessWidget {
 
     return Consumer<ThemeNotifier>(
       builder: (context, themeNotifier, child) {
+        // Capture services BEFORE MaterialApp to use in builder
+        final musicService = context.read<MusicService>();
+        
         return MaterialApp(
+          navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'Music App',
           theme: lightTheme,
@@ -176,7 +178,11 @@ class MyApp extends StatelessWidget {
           home: const OnboardingPager(),
           initialRoute: '/splash',
           builder: (context, child) {
-            return GlobalMiniPlayer(child: child ?? const SizedBox.shrink());
+            return GlobalMiniPlayer(
+              navigatorKey: navigatorKey,
+              musicService: musicService,
+              child: child ?? const SizedBox.shrink(),
+            );
           },
           routes: {
             '/splash': (context) => const SplashScreen(),
@@ -205,6 +211,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
+
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -216,66 +224,29 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
-
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  late final MusicService _musicService;
+  // Pages for bottom navigation tabs
+  late List<Widget> _pages;
 
-  late final List<Widget> _pages;
+  late final MusicService _musicService;
 
   @override
   void initState() {
     super.initState();
-    _musicService = context.read<MusicService>();
-    _musicService.init();
-
-    _musicService.currentSongNotifier.addListener(() => setState(() {}));
-    _musicService.isPlayingNotifier.addListener(() => setState(() {}));
-    _musicService.currentDurationNotifier.addListener(() => setState(() {}));
-    _musicService.totalDurationNotifier.addListener(() => setState(() {}));
-
-    // Listen for Playback Errors
-    _musicService.errorMessageNotifier.addListener(() {
-      final error = _musicService.errorMessageNotifier.value;
-      if (error != null) {
-        // Show error snackbar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () {
-                _musicService.play();
-              },
-            ),
-          ),
-        );
-      }
-    });
+    _musicService = Provider.of<MusicService>(context, listen: false);
 
     _pages = [
-      HomeScreen(
-        onPlaySong: _playNewSong,
-        currentSong: _musicService.currentSongNotifier.value,
-        isPlaying: _musicService.isPlayingNotifier.value,
-        onTogglePlayPause: _togglePlayPause,
-      ),
-      SearchScreen(onPlaySong: (song, playlist, index) {
-        _playNewSong(song, playlist, index);
-      }),
+      const SizedBox.shrink(),
+      SearchScreen(onPlaySong: _playNewSong),
       const LibraryScreen(),
     ];
 
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
+        vsync: this, duration: const Duration(milliseconds: 300));
+    _fadeAnimation =
+        CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
+
     _animationController.forward();
   }
 
@@ -296,7 +267,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   }
 
   void _playNewSong(SongModel song, List<SongModel> playlist, int index) {
-    // Load the full playlist so next/previous buttons work
     _musicService.loadPlaylist(playlist, index);
   }
 
@@ -307,8 +277,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       _musicService.play();
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -373,5 +341,4 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       ),
     );
   }
-
 }

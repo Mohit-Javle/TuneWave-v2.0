@@ -7,6 +7,7 @@ import 'package:clone_mp/services/playlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/screen/add_songs_screen.dart';
+import 'package:clone_mp/widgets/download_button.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -321,9 +322,15 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
           title: Text(song.name),
           subtitle: Text(song.artist),
-          trailing: IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () => _showSongOptions(song),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DownloadButton(song: song),
+              IconButton(
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => _showSongOptions(song),
+              ),
+            ],
           ),
           onTap: () {
             musicService.loadPlaylist(playlistSongs, index);

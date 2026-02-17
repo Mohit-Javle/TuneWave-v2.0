@@ -47,6 +47,7 @@ class MusicService with ChangeNotifier {
     });
 
     _audioHandler.mediaItem.listen((mediaItem) {
+      debugPrint("🎵 MusicService: mediaItem changed = ${mediaItem?.title ?? 'null'}");
       if (mediaItem != null) {
         // Find SongModel from playlist or create from MediaItem
         // Ideally we find it in _playlist to get full details
@@ -64,6 +65,7 @@ class MusicService with ChangeNotifier {
         );
         
         if (currentSongNotifier.value?.id != song.id) {
+           debugPrint("🎵 MusicService: Setting currentSongNotifier to ${song.name}");
            currentSongNotifier.value = song;
            addToHistory(song);
         }

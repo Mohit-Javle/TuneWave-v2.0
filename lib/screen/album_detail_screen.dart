@@ -2,6 +2,7 @@
 import 'package:clone_mp/models/album_model.dart';
 import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/music_service.dart';
+import 'package:clone_mp/widgets/download_button.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -115,15 +116,27 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                       return ListTile(
                          leading: Text(
                             "${index + 1}", 
-                            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
                          ),
                          title: Text(song.name, style: TextStyle(color: theme.colorScheme.onSurface)),
                          subtitle: Text(
                             song.artist, 
-                            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
                             maxLines: 1,
                          ),
-                         trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
+                         trailing: Row(
+                           mainAxisSize: MainAxisSize.min,
+                           children: [
+                             DownloadButton(song: song),
+                             IconButton(
+                               icon: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
+                               onPressed: () {
+                                 // Play entire album starting from this song
+                                 musicService.loadPlaylist(albumSongs, index);
+                               },
+                             ),
+                           ],
+                         ),
                          onTap: () {
                             // Play entire album starting from this song
                             musicService.loadPlaylist(albumSongs, index);

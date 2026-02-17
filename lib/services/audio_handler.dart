@@ -59,6 +59,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     if (_queue.isEmpty || _index < 0 || _index >= _queue.length) return;
     
     final item = _queue[_index];
+    debugPrint("🎵 AudioHandler: Setting mediaItem to ${item.title}");
     mediaItem.add(item);
     
     try {
