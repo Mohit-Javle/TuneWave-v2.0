@@ -3,9 +3,10 @@ import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/models/album_model.dart';
 import 'package:clone_mp/models/artist_model.dart';
 import 'package:clone_mp/services/api_service.dart';
-import 'package:clone_mp/models/song_model.dart';
+
 import 'package:clone_mp/services/follow_service.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
@@ -146,6 +147,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final bool showHistory = _searchController.text.isEmpty && _songResults.isEmpty && _albumResults.isEmpty;
     
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: TextField(
@@ -214,7 +216,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   // Navigate to artist detail
                                   Navigator.pushNamed(
                                     context, 
-                                    '/artist', 
+                                    AppRoutes.artist, 
                                     arguments: {'name': artist.name, 'image': artist.imageUrl}
                                   );
                                 },
@@ -261,7 +263,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               onTap: () {
                                   Navigator.pushNamed(
                                     context, 
-                                    '/artist', 
+                                    AppRoutes.artist, 
                                     arguments: {
                                       'id': artist.id,
                                       'name': artist.name, 
@@ -300,7 +302,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               final album = _albumResults[index];
                               return GestureDetector(
                                 onTap: () {
-                                  Navigator.pushNamed(context, '/album', arguments: album);
+                                  Navigator.pushNamed(context, AppRoutes.album, arguments: album);
                                 },
                                 child: Container(
                                   width: 130,
@@ -387,6 +389,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 } else if (direction == DismissDirection.endToStart) {
                                   // Swipe Right-to-Left: Toggle Like
                                   await context.read<PlaylistService>().toggleLike(song);
+                                  if (!context.mounted) return false;
                                   final isLiked = context.read<PlaylistService>().isLiked(song);
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(

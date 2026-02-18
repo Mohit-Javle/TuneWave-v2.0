@@ -1,11 +1,13 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:clone_mp/services/audio_handler.dart';
 
+import 'package:flutter/foundation.dart';
+
 void main() {
-  final handler = AudioPlayerHandler();
+  final Object handler = AudioPlayerHandler();
   if (handler is AudioHandler) {
-    print("AudioPlayerHandler IS AudioHandler");
+    debugPrint("AudioPlayerHandler IS AudioHandler");
   } else {
-    print("AudioPlayerHandler IS NOT AudioHandler");
+    debugPrint("AudioPlayerHandler IS NOT AudioHandler");
   }
 }

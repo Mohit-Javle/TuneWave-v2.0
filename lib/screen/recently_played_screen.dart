@@ -1,10 +1,10 @@
-// ignore_for_file: deprecated_member_use
+
 
 import 'package:clone_mp/services/music_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'package:clone_mp/route_names.dart';
+
 
 class RecentlyPlayedScreen extends StatelessWidget {
   const RecentlyPlayedScreen({super.key});
@@ -35,14 +35,14 @@ class RecentlyPlayedScreen extends StatelessWidget {
                   Icon(
                     Icons.history,
                     size: 80,
-                    color: theme.colorScheme.onSurface.withOpacity(0.3),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'No recently played songs',
                     style: TextStyle(
                       fontSize: 18,
-                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
@@ -70,7 +70,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                       width: 50,
                       height: 50,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+                      errorBuilder: (_, _, _) => Container(
                         width: 50,
                         height: 50,
                         color: Colors.grey,
@@ -93,7 +93,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                       Text(
                         song.artist,
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -102,7 +102,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                         Text(
                           timeAgo,
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                             fontSize: 12,
                           ),
                         ),
@@ -120,7 +120,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                   ),
                   onTap: () {
                      musicService.loadPlaylist(recentlyPlayed, index);
-                     Navigator.pushNamed(context, '/main'); // Go to player/home
+                     Navigator.pushNamed(context, AppRoutes.main); // Go to player/home
                   },
                 );
               },

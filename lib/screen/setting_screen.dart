@@ -5,6 +5,7 @@ import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/theme_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 
 // ### REMOVE: Enum is no longer needed ###
@@ -68,12 +69,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: Icon(Icons.person_outline, color: iconColor),
               title: Text('Edit Profile', style: TextStyle(color: textDark)),
-              onTap: () => Navigator.pushNamed(context, '/profile'),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.profile),
             ),
             ListTile(
               leading: Icon(Icons.lock_outline, color: iconColor),
               title: Text('Change Password', style: TextStyle(color: textDark)),
-              onTap: () => Navigator.pushNamed(context, '/change_password'),
+              onTap: () => Navigator.pushNamed(context, AppRoutes.changePassword),
 
             ),
             ListTile(
@@ -86,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   // Reset theme to light or keep? Let's keep as is or reset.
                   // Provider.of<ThemeNotifier>(context, listen: false).setTheme(ThemeMode.light);
                   
-                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                  Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (route) => false);
                 }
               },
             ),

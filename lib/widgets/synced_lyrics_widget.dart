@@ -124,7 +124,7 @@ class _SyncedLyricsWidgetState extends State<SyncedLyricsWidget> {
         child: Text(
           'No lyrics available',
           style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.5),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
           ),
         ),
       );
@@ -153,8 +153,8 @@ class _SyncedLyricsWidgetState extends State<SyncedLyricsWidget> {
                 color: isActive
                     ? const Color(0xFFFF6600)
                     : isPast
-                        ? theme.colorScheme.onSurface.withOpacity(0.5)
-                        : theme.colorScheme.onSurface.withOpacity(0.7),
+                        ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
+                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 height: 1.5,
               ),
             ),

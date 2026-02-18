@@ -1,4 +1,3 @@
-
 import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -14,9 +13,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     });
 
     _player.onPositionChanged.listen((position) {
-      playbackState.add(playbackState.value.copyWith(
-        updatePosition: position,
-      ));
+      playbackState.add(playbackState.value.copyWith(updatePosition: position));
     });
 
     _player.onDurationChanged.listen((duration) {
@@ -27,16 +24,18 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     });
 
     _player.onPlayerStateChanged.listen((state) {
-      playbackState.add(playbackState.value.copyWith(
-        playing: state == PlayerState.playing,
-        processingState: {
-          PlayerState.stopped: AudioProcessingState.idle,
-          PlayerState.playing: AudioProcessingState.ready,
-          PlayerState.paused: AudioProcessingState.ready,
-          PlayerState.completed: AudioProcessingState.completed,
-          PlayerState.disposed: AudioProcessingState.idle,
-        }[state]!,
-      ));
+      playbackState.add(
+        playbackState.value.copyWith(
+          playing: state == PlayerState.playing,
+          processingState: {
+            PlayerState.stopped: AudioProcessingState.idle,
+            PlayerState.playing: AudioProcessingState.ready,
+            PlayerState.paused: AudioProcessingState.ready,
+            PlayerState.completed: AudioProcessingState.completed,
+            PlayerState.disposed: AudioProcessingState.idle,
+          }[state]!,
+        ),
+      );
     });
   }
 
@@ -46,7 +45,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     // Broadcast the new queue (optional, if UI needs to know)
     queue.add(_queue);
   }
-  
+
   // Custom method to set playlist and play specific index
   Future<void> setPlaylist(List<MediaItem> items, int index) async {
     _queue = items;
@@ -57,39 +56,41 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   Future<void> _playCurrent() async {
     if (_queue.isEmpty || _index < 0 || _index >= _queue.length) return;
-    
+
     final item = _queue[_index];
     debugPrint("🎵 AudioHandler: Setting mediaItem to ${item.title}");
     mediaItem.add(item);
-    
+
     try {
       await _player.stop();
       final url = item.extras?['url'] as String?;
-      
+
       if (url != null && url.isNotEmpty) {
-         if (url.startsWith('http')) {
-           await _player.play(UrlSource(url));
-         } else {
-           // Assume local file
-           await _player.play(DeviceFileSource(url));
-         }
+        if (url.startsWith('http')) {
+          await _player.play(UrlSource(url));
+        } else {
+          // Assume local file
+          await _player.play(DeviceFileSource(url));
+        }
       }
-      
-      playbackState.add(playbackState.value.copyWith(
-        playing: true,
-        controls: [
-          MediaControl.skipToPrevious,
-          MediaControl.pause,
-          MediaControl.stop,
-          MediaControl.skipToNext,
-        ],
-        systemActions: const {
-          MediaAction.seek,
-          MediaAction.seekForward,
-          MediaAction.seekBackward,
-        },
-        processingState: AudioProcessingState.ready,
-      ));
+
+      playbackState.add(
+        playbackState.value.copyWith(
+          playing: true,
+          controls: [
+            MediaControl.skipToPrevious,
+            MediaControl.pause,
+            MediaControl.stop,
+            MediaControl.skipToNext,
+          ],
+          systemActions: const {
+            MediaAction.seek,
+            MediaAction.seekForward,
+            MediaAction.seekBackward,
+          },
+          processingState: AudioProcessingState.ready,
+        ),
+      );
     } catch (e) {
       debugPrint("Error playing audio: $e");
     }
@@ -104,10 +105,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     await _player.stop();
-    playbackState.add(playbackState.value.copyWith(
-      playing: false,
-      processingState: AudioProcessingState.idle,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        playing: false,
+        processingState: AudioProcessingState.idle,
+      ),
+    );
   }
 
   @override
@@ -128,7 +131,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> skipToPrevious() async {
     if (_queue.isEmpty) return;
-    
+
     // Smart previous: if more than 3 seconds into the song, restart it
     final currentPosition = await _player.getCurrentPosition();
     if (currentPosition != null && currentPosition.inSeconds > 3) {
@@ -171,7 +174,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   // Remove song from queue by index
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    
+
     if (index == _index) {
       // Removing current song, skip to next
       await skipToNext();
@@ -179,12 +182,13 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
       // Removing song before current, adjust index
       _index--;
     }
-    
+
     _queue.removeAt(index);
     queue.add(_queue);
   }
 
   // Skip to specific queue index
+  @override
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= _queue.length) return;
     _index = index;
@@ -195,10 +199,10 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
     if (oldIndex < 0 || oldIndex >= _queue.length) return;
     if (newIndex < 0 || newIndex >= _queue.length) return;
-    
+
     final item = _queue.removeAt(oldIndex);
     _queue.insert(newIndex, item);
-    
+
     // Adjust current index if needed
     if (oldIndex == _index) {
       _index = newIndex;
@@ -207,7 +211,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     } else if (oldIndex > _index && newIndex <= _index) {
       _index++;
     }
-    
+
     queue.add(_queue);
   }
 
@@ -221,7 +225,7 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   // Get current queue index
   int get currentIndex => _index;
-  
+
   // Get queue length
   int get queueLength => _queue.length;
 }

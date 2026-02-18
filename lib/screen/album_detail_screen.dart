@@ -116,12 +116,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                       return ListTile(
                          leading: Text(
                             "${index + 1}", 
-                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
                          ),
                          title: Text(song.name, style: TextStyle(color: theme.colorScheme.onSurface)),
                          subtitle: Text(
                             song.artist, 
-                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                            style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
                             maxLines: 1,
                          ),
                          trailing: Row(

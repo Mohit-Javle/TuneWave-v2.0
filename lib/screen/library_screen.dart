@@ -6,6 +6,7 @@ import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/widgets/create_playlist_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -148,7 +149,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final theme = Theme.of(context);
     final playlistService = context.watch<PlaylistService>();
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/liked_songs'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.likedSongs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -218,14 +219,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text('${playlistService.likedSongs.length} songs'),
-      onTap: () => Navigator.pushNamed(context, '/liked_songs'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.likedSongs),
     );
   }
 
   Widget _buildRecentlyPlayedCard() {
     final theme = Theme.of(context);
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/recently_played'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.recentlyPlayed),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -294,7 +295,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: const Text('Your history'),
-      onTap: () => Navigator.pushNamed(context, '/recently_played'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.recentlyPlayed),
     );
   }
 
@@ -302,7 +303,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final theme = Theme.of(context);
     final downloadService = context.watch<DownloadService>();
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/downloads'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.downloads),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -372,7 +373,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text('${downloadService.downloadedSongs.length} songs'),
-      onTap: () => Navigator.pushNamed(context, '/downloads'),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.downloads),
     );
   }
 

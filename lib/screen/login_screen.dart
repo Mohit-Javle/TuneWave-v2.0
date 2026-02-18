@@ -4,6 +4,8 @@ import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/theme_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
+import 'package:clone_mp/services/personalization_service.dart';
 import 'package:provider/provider.dart';
 
 // This file remains the entry point for your onboarding flow.
@@ -149,8 +151,17 @@ class _LoginPageState extends State<LoginPage> {
         await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
         await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
+        // Check Personalization Status
+        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+        final isPersonalized = await personalizationService.isPersonalizationCompleted();
+
         setState(() => _isLoading = false);
-        Navigator.pushReplacementNamed(context, '/main');
+        
+        if (isPersonalized) {
+          Navigator.pushReplacementNamed(context, AppRoutes.main);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+        }
       }
     }
   }
@@ -361,6 +372,10 @@ class _SignUpPageState extends State<SignUpPage> {
         await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
         await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
+        // Check Personalization Status
+        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+        final isPersonalized = await personalizationService.isPersonalizationCompleted();
+
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -368,7 +383,12 @@ class _SignUpPageState extends State<SignUpPage> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.pushReplacementNamed(context, '/main');
+        
+        if (isPersonalized) {
+          Navigator.pushReplacementNamed(context, AppRoutes.main);
+        } else {
+          Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+        }
       }
     }
   }

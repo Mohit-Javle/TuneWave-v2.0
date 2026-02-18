@@ -2,6 +2,8 @@
 // ignore_for_file: deprecated_member_use, unused_element
 
 import 'package:clone_mp/widgets/global_mini_player.dart';
+import 'package:clone_mp/route_names.dart';
+import 'package:clone_mp/route_observer.dart';
 
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/theme_notifier.dart';
@@ -9,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:clone_mp/screen/home_screen.dart';
 import 'package:clone_mp/screen/library_screen.dart';
 import 'package:clone_mp/screen/login_screen.dart';
-import 'package:clone_mp/screen/music_screen.dart';
+
 import 'package:clone_mp/screen/search_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/screen/change_password_screen.dart';
@@ -34,7 +36,9 @@ import 'package:clone_mp/screen/queue_screen.dart';
 import 'package:clone_mp/screen/recently_played_screen.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/screen/downloads_page.dart';
-import 'package:clone_mp/models/song_model.dart'; // Needed for SongModel in MainScreen
+import 'package:clone_mp/services/personalization_service.dart';
+import 'package:clone_mp/screens/personalization/personalization_screen.dart';
+// Needed for SongModel in MainScreen
 
 // Global Key for Navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -76,7 +80,9 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
       return handler;
     } catch (e) {
       debugPrint("⚠️ CRITICAL: AudioService initialization failed: $e");
-      debugPrint("Background audio notifications may not work. Check MainActivity extends AudioServiceFragmentActivity.");
+      debugPrint(
+        "Background audio notifications may not work. Check MainActivity extends AudioServiceFragmentActivity.",
+      );
       // Return fallback handler to allow app to launch
       return AudioPlayerHandler();
     }
@@ -90,34 +96,37 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const MaterialApp(
             debugShowCheckedModeBanner: false,
-            home: Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            ),
+            home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
-        
+
         // FALLBACK: If error, use local handler to allow app launch
         final AudioHandler audioHandler;
         if (snapshot.hasError || snapshot.data == null) {
-           debugPrint("AudioService Init Failed: ${snapshot.error} - Using Fallback");
-           audioHandler = AudioPlayerHandler();
+          debugPrint(
+            "AudioService Init Failed: ${snapshot.error} - Using Fallback",
+          );
+          audioHandler = AudioPlayerHandler();
         } else {
-           audioHandler = snapshot.data!;
+          audioHandler = snapshot.data!;
         }
-        
+
         final dlService = DownloadService();
-        
+
         return MultiProvider(
-            providers: [
-              ChangeNotifierProvider(create: (_) => ThemeNotifier()),
-              ChangeNotifierProvider(create: (_) => dlService..init()),
-              ChangeNotifierProvider(create: (_) => MusicService(audioHandler, dlService)..init()),
-              ChangeNotifierProvider(create: (_) => PlaylistService()),
-              ChangeNotifierProvider(create: (_) => AuthService()),
-              ChangeNotifierProvider(create: (_) => FollowService()),
-              ChangeNotifierProvider(create: (_) => UiStateService()),
-            ],
-            child: const MyApp(),
+          providers: [
+            ChangeNotifierProvider(create: (_) => ThemeNotifier()),
+            ChangeNotifierProvider(create: (_) => dlService..init()),
+            ChangeNotifierProvider(
+              create: (_) => MusicService(audioHandler, dlService)..init(),
+            ),
+            ChangeNotifierProvider(create: (_) => PlaylistService()),
+            ChangeNotifierProvider(create: (_) => AuthService()),
+            ChangeNotifierProvider(create: (_) => FollowService()),
+            ChangeNotifierProvider(create: (_) => UiStateService()),
+            ChangeNotifierProvider(create: (_) => PersonalizationService()),
+          ],
+          child: const MyApp(),
         );
       },
     );
@@ -167,16 +176,17 @@ class MyApp extends StatelessWidget {
       builder: (context, themeNotifier, child) {
         // Capture services BEFORE MaterialApp to use in builder
         final musicService = context.read<MusicService>();
-        
+
         return MaterialApp(
           navigatorKey: navigatorKey,
+          navigatorObservers: [appRouteObserver],
           debugShowCheckedModeBanner: false,
           title: 'Music App',
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: themeNotifier.getThemeMode,
           home: const OnboardingPager(),
-          initialRoute: '/splash',
+          initialRoute: AppRoutes.splash,
           builder: (context, child) {
             return GlobalMiniPlayer(
               navigatorKey: navigatorKey,
@@ -185,23 +195,26 @@ class MyApp extends StatelessWidget {
             );
           },
           routes: {
-            '/splash': (context) => const SplashScreen(),
-            '/main': (context) => const MainScreen(),
-            '/login': (context) => const OnboardingPager(),
-            '/profile': (context) => const ProfileScreen(),
-            '/liked_songs': (context) => const LikedSongsScreen(),
-            '/settings': (context) => const SettingsScreen(),
-            '/notifications': (context) => const NotificationScreen(),
-            '/change_password': (context) => const ChangePasswordScreen(),
-            '/about': (context) => const AboutScreen(),
-            '/invite_friends': (context) => const InviteFriendsScreen(),
-            '/queue': (context) => const QueueScreen(),
-            '/recently_played': (context) => const RecentlyPlayedScreen(),
-            '/downloads': (context) => const DownloadsPage(),
-            '/artist': (context) => ArtistDetailScreen(
-              artist: ModalRoute.of(context)!.settings.arguments as Map<String, String>,
+            AppRoutes.splash: (context) => const SplashScreen(),
+            AppRoutes.main: (context) => const MainScreen(),
+            AppRoutes.login: (context) => const OnboardingPager(),
+            AppRoutes.profile: (context) => const ProfileScreen(),
+            AppRoutes.likedSongs: (context) => const LikedSongsScreen(),
+            AppRoutes.settings: (context) => const SettingsScreen(),
+            AppRoutes.notifications: (context) => const NotificationScreen(),
+            AppRoutes.changePassword: (context) => const ChangePasswordScreen(),
+            AppRoutes.about: (context) => const AboutScreen(),
+            AppRoutes.inviteFriends: (context) => const InviteFriendsScreen(),
+            AppRoutes.queue: (context) => const QueueScreen(),
+            AppRoutes.recentlyPlayed: (context) => const RecentlyPlayedScreen(),
+            AppRoutes.downloads: (context) => const DownloadsPage(),
+            AppRoutes.personalization: (context) => const PersonalizationScreen(),
+            AppRoutes.artist: (context) => ArtistDetailScreen(
+              artist:
+                  ModalRoute.of(context)!.settings.arguments
+                      as Map<String, String>,
             ),
-            '/album': (context) => AlbumDetailScreen(
+            AppRoutes.album: (context) => AlbumDetailScreen(
               album: ModalRoute.of(context)!.settings.arguments as AlbumModel,
             ),
           },
@@ -210,8 +223,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -243,9 +254,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     ];
 
     _animationController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 300));
-    _fadeAnimation =
-        CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeIn,
+    );
 
     _animationController.forward();
   }

@@ -6,6 +6,7 @@ import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/widgets/download_button.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 
 class ArtistDetailScreen extends StatefulWidget {
@@ -207,7 +208,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                 : const Color(0xFFFF6600),
                             side: BorderSide(
                               color: isFollowing 
-                                  ? theme.colorScheme.onSurface.withOpacity(0.3) 
+                                  ? theme.colorScheme.onSurface.withValues(alpha: 0.3) 
                                   : const Color(0xFFFF6600),
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -302,7 +303,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                               child: Text(
                                 "${index + 1}",
                                 style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                   fontWeight: FontWeight.bold,
                                   fontSize: 14,
                                 ),
@@ -336,7 +337,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                       subtitle: Text(
                         song.artist,
                         style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                           fontSize: 12,
                         ),
                         maxLines: 1,
@@ -423,7 +424,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                       final album = albums[index];
                       return GestureDetector(
                         onTap: () {
-                           Navigator.pushNamed(context, '/album', arguments: album);
+                           Navigator.pushNamed(context, AppRoutes.album, arguments: album);
                         },
                         child: Container(
                           width: 140,
@@ -462,7 +463,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                                   fontSize: 12,
                                 ),
                               ),

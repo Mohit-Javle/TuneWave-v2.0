@@ -2,8 +2,10 @@
 import 'dart:async';
 import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/theme_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -62,12 +64,19 @@ class _SplashScreenState extends State<SplashScreen>
         await themeNotifier.loadTheme(user.email);
 
         if (mounted) {
-          // If yes, go to the main screen
-          Navigator.of(context).pushReplacementNamed('/main');
+          // Check Personalization
+          final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+          final isPersonalized = await personalizationService.isPersonalizationCompleted();
+
+          if (isPersonalized) {
+            Navigator.of(context).pushReplacementNamed(AppRoutes.main);
+          } else {
+            Navigator.of(context).pushReplacementNamed(AppRoutes.personalization);
+          }
         }
       } else {
         // If no, go to the login screen
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
       }
     }
   }

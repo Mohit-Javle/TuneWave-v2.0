@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, unnecessary_underscores
 
 import 'package:clone_mp/services/music_service.dart';
 import 'package:flutter/material.dart';
@@ -102,10 +102,7 @@ class QueueScreen extends StatelessWidget {
                           label: 'Undo',
                           onPressed: () {
                             // Re-add at same position
-                            musicService.reorderQueue(
-                              queue.length - 1,
-                              index,
-                            );
+                            musicService.reorderQueue(queue.length - 1, index);
                           },
                         ),
                       ),
@@ -165,8 +162,9 @@ class QueueScreen extends StatelessWidget {
                           color: isCurrentSong
                               ? const Color(0xFFFF6600)
                               : theme.colorScheme.onSurface,
-                          fontWeight:
-                              isCurrentSong ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isCurrentSong
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

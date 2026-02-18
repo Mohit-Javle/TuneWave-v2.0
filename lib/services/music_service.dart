@@ -5,7 +5,7 @@ import 'package:audio_service/audio_service.dart';
 import '../models/song_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
-import 'audio_handler.dart'; // Import the handler
+
 import 'download_service.dart';
 
 export '../models/song_model.dart'; 
@@ -28,7 +28,7 @@ class MusicService with ChangeNotifier {
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier(null);
 
   List<SongModel> _originalPlaylist = [];
-  List<SongModel> _shuffledPlaylist = [];
+
 
   MusicService(this._audioHandler, this._downloadService); // Inject handler and download service
 
@@ -201,10 +201,7 @@ class MusicService with ChangeNotifier {
   List<SongModel> get currentQueue => _playlist;
   
   int get currentQueueIndex {
-    if (_audioHandler is dynamic) {
-      return (_audioHandler as dynamic).currentIndex ?? 0;
-    }
-    return 0;
+    return (_audioHandler as dynamic).currentIndex ?? 0;
   }
 
   Future<void> addToPlayNext(SongModel song) async {

@@ -3,10 +3,11 @@
 import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
-import 'package:clone_mp/services/ui_state_service.dart';
+
 import 'package:clone_mp/widgets/create_playlist_sheet.dart';
 import 'package:clone_mp/widgets/download_button.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
@@ -111,9 +112,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     if (currentSong != null) {
       _fetchLyrics(currentSong);
     }
-    
-    // Hide global mini player logic moved to MiniPlayerObserver
 
+    // Hide global mini player logic moved to MiniPlayerObserver
   }
 
   void _fetchLyrics(SongModel song) {
@@ -148,10 +148,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     _musicService.isPlayingNotifier.removeListener(_handlePlayerStateChange);
     _musicService.currentSongNotifier.removeListener(_handleSongChange);
     _rotationController.dispose();
-    
+
     // Show global mini player logic moved to MiniPlayerObserver
 
-    
     super.dispose();
   }
 
@@ -186,7 +185,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                 IconButton(
                   icon: Icon(Icons.queue_music, color: iconColor, size: 24),
                   onPressed: () {
-                    Navigator.pushNamed(context, '/queue');
+                    Navigator.pushNamed(context, AppRoutes.queue);
                   },
                   tooltip: 'View Queue',
                 ),
@@ -211,9 +210,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
               onSelected: (String result) {
                 if (result == 'about_artist') {
                   // Simplified artist interaction for now
-                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Artist details coming soon!')),
-                   );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Artist details coming soon!'),
+                    ),
+                  );
                 } else if (result == 'about_song') {
                   _showSongDetailsDialog(context, currentSong);
                 } else if (result == 'add_to_playlist') {
@@ -308,10 +309,13 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                             return GestureDetector(
                               onDoubleTapDown: (details) {
                                 // Determine if tap is on left or right side
-                                final RenderBox box = context.findRenderObject() as RenderBox;
-                                final localPosition = box.globalToLocal(details.globalPosition);
+                                final RenderBox box =
+                                    context.findRenderObject() as RenderBox;
+                                final localPosition = box.globalToLocal(
+                                  details.globalPosition,
+                                );
                                 final width = box.size.width;
-                                
+
                                 if (localPosition.dx < width / 2) {
                                   // Left side - previous
                                   _showSkipFeedback(context, false);
@@ -343,7 +347,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                                     child: Image.network(
                                       currentSong.imageUrl,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                      errorBuilder: (_, _, _) =>
+                                          Container(color: Colors.grey),
                                     ),
                                   ),
                                 ),
@@ -615,7 +620,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                   return centeredMessage("Error loading lyrics.");
                 }
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty || snapshot.data == 'No lyrics found.') {
+                if (!snapshot.hasData ||
+                    snapshot.data!.isEmpty ||
+                    snapshot.data == 'No lyrics found.') {
                   return centeredMessage("Lyrics not found for this song.");
                 }
 
@@ -749,42 +756,46 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                   ),
                   Expanded(
                     child: playlists.isEmpty
-                          ? Center(
-                              child: Text(
-                                "You don't have any playlists yet.",
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                                ),
+                        ? Center(
+                            child: Text(
+                              "You don't have any playlists yet.",
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withOpacity(0.7),
                               ),
-                            )
-                          : ListView.builder(
-                              itemCount: playlists.length,
-                              itemBuilder: (context, index) {
-                                final playlist = playlists[index];
-                                final songCount = playlist.songs.length;
-                                return ListTile(
-                                  leading: const Icon(Icons.playlist_play),
-                                  title: Text(playlist.name),
-                                  subtitle: Text('$songCount songs'),
-                                  onTap: () {
-                                    playlistService.addSongsToPlaylist(
-                                      playlist.id,
-                                      [song],
-                                    );
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Added to ${playlist.name}',
-                                          style: const TextStyle(color: Colors.white),
-                                        ),
-                                        backgroundColor: primaryOrange,
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
                             ),
+                          )
+                        : ListView.builder(
+                            itemCount: playlists.length,
+                            itemBuilder: (context, index) {
+                              final playlist = playlists[index];
+                              final songCount = playlist.songs.length;
+                              return ListTile(
+                                leading: const Icon(Icons.playlist_play),
+                                title: Text(playlist.name),
+                                subtitle: Text('$songCount songs'),
+                                onTap: () {
+                                  playlistService.addSongsToPlaylist(
+                                    playlist.id,
+                                    [song],
+                                  );
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Added to ${playlist.name}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      backgroundColor: primaryOrange,
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -798,7 +809,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
   void _showSkipFeedback(BuildContext context, bool isNext) {
     final overlay = Overlay.of(context);
     late OverlayEntry overlayEntry;
-    
+
     overlayEntry = OverlayEntry(
       builder: (context) => Positioned.fill(
         child: Center(
@@ -830,7 +841,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
         ),
       ),
     );
-    
+
     overlay.insert(overlayEntry);
   }
 }

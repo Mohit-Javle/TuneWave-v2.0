@@ -4,6 +4,7 @@
 import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/models/song_model.dart';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 
 import 'package:clone_mp/services/auth_service.dart';
@@ -177,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         AuthService.instance.logout();
                         Navigator.pushNamedAndRemoveUntil(
                           context,
-                          '/login',
+                          AppRoutes.login,
                           (route) => false,
                         );
                       },
@@ -396,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       final artist = popularArtists[index];
                       return GestureDetector(
                         onTap: () {
-                          Navigator.pushNamed(context, '/artist', arguments: artist);
+                          Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
                         },
                         child: Container(
                           margin: const EdgeInsets.only(right: 16),
@@ -745,9 +746,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () {
                     Navigator.pop(context);
                     if (user != null) {
-                      Navigator.pushNamed(context, '/profile');
+                      Navigator.pushNamed(context, AppRoutes.profile);
                     } else {
-                      Navigator.pushNamed(context, '/login');
+                      Navigator.pushNamed(context, AppRoutes.login);
                     }
                   },
                   child: CircleAvatar(
@@ -774,7 +775,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Profile',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/profile');
+                    Navigator.pushNamed(context, AppRoutes.profile);
                   },
                   selectedColor: selectedColor,
                   iconColor: iconColor,
@@ -786,7 +787,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Liked Songs',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/liked_songs');
+                    Navigator.pushNamed(context, AppRoutes.likedSongs);
                   },
                   selectedColor: selectedColor,
                   iconColor: iconColor,
@@ -799,7 +800,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Settings',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/settings');
+                    Navigator.pushNamed(context, AppRoutes.settings);
                   },
                   selectedColor: selectedColor,
                   iconColor: iconColor,
@@ -811,7 +812,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'About',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/about');
+                    Navigator.pushNamed(context, AppRoutes.about);
                   },
                   selectedColor: selectedColor,
                   iconColor: iconColor,
@@ -823,7 +824,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Invite Friends',
                   onTap: () {
                     Navigator.pop(context);
-                    Navigator.pushNamed(context, '/invite_friends');
+                    Navigator.pushNamed(context, AppRoutes.inviteFriends);
                   },
                   selectedColor: selectedColor,
                   iconColor: iconColor,
