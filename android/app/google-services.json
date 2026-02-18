@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "160784769423",
+    "project_id": "tunewave-3b62d",
+    "storage_bucket": "tunewave-3b62d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:160784769423:android:8c959d678eff3f63af6bfa",
+        "android_client_info": {
+          "package_name": "com.example.tunewave"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyW7lwSjLlqgU1BisAG465jcF962FRfdU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

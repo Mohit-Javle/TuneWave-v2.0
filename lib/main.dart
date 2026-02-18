@@ -40,11 +40,21 @@ import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/screens/personalization/personalization_screen.dart';
 // Needed for SongModel in MainScreen
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 // Global Key for Navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase
+  await Firebase.initializeApp();
+  
+  // Enable offline persistence
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  
   runApp(const AppBootstrapper());
 }
 

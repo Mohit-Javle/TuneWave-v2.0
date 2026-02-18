@@ -3,8 +3,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import '../models/song_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'auth_service.dart';
 
 import 'download_service.dart';
 
@@ -77,11 +79,36 @@ class MusicService with ChangeNotifier {
   }
 
   Future<void> _loadHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final historyJson = prefs.getStringList('listening_history') ?? [];
-    _listeningHistory = historyJson
-        .map((e) => SongModel.fromJson(json.decode(e)))
-        .toList();
+    final email = AuthService.instance.currentUser?.email;
+    if (email != null) {
+      try {
+        final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(email)
+          .collection('listeningHistory')
+          .orderBy('playedAt', descending: true)
+          .limit(50)
+          .get();
+        _listeningHistory = snapshot.docs
+          .map((doc) => SongModel.fromJson(doc.data()))
+          .toList();
+      } catch (e) {
+        debugPrint('Error loading history from Firestore, falling back to SharedPreferences: $e');
+        // Fallback to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        final historyJson = prefs.getStringList('listening_history') ?? [];
+        _listeningHistory = historyJson
+            .map((e) => SongModel.fromJson(json.decode(e)))
+            .toList();
+      }
+    } else {
+      // No user logged in, try SharedPreferences as fallback
+      final prefs = await SharedPreferences.getInstance();
+      final historyJson = prefs.getStringList('listening_history') ?? [];
+      _listeningHistory = historyJson
+          .map((e) => SongModel.fromJson(json.decode(e)))
+          .toList();
+    }
     notifyListeners();
   }
 
@@ -106,11 +133,20 @@ class MusicService with ChangeNotifier {
     }
     notifyListeners();
 
-    final prefs = await SharedPreferences.getInstance();
-    final historyJson = _listeningHistory
-        .map((e) => json.encode(e.toJson()))
-        .toList();
-    await prefs.setStringList('listening_history', historyJson);
+    // Non-blocking fire-and-forget write to Firestore
+    final email = AuthService.instance.currentUser?.email;
+    if (email != null) {
+      FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('listeningHistory')
+        .doc(song.id)
+        .set({
+          ...historyEntry.toJson(),
+          'playedAt': FieldValue.serverTimestamp(),
+        })
+        .catchError((e) => debugPrint('History write failed: $e'));
+    }
   }
 
   void loadPlaylist(List<SongModel> songs, int startIndex) {

@@ -1,9 +1,8 @@
-// lib/services/auth_service.dart
 import 'dart:async';
-import 'dart:convert';
 import 'package:clone_mp/models/user_model.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService extends ChangeNotifier {
   // Singleton pattern
@@ -18,125 +17,162 @@ class AuthService extends ChangeNotifier {
       StreamController<UserModel?>.broadcast();
   Stream<UserModel?> get userStream => _userController.stream;
 
-  static const String _usersKey = 'users_db';
-  static const String _sessionKey = 'current_user_email';
-
-  // Load session on startup
+  // Init — called on app start
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    final currentEmail = prefs.getString(_sessionKey);
-
-    if (currentEmail != null) {
-      final usersJson = prefs.getString(_usersKey);
-      if (usersJson != null) {
-        final Map<String, dynamic> users = jsonDecode(usersJson);
-        debugPrint("DEBUG AUTH: Loaded existing users: $usersJson");
-        if (users.containsKey(currentEmail)) {
-          _currentUser = UserModel.fromJson(users[currentEmail]);
-          _userController.add(_currentUser);
-          notifyListeners();
-        }
-      }
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null && firebaseUser.email != null) {
+      _currentUser = await _fetchUserProfile(firebaseUser.email!);
+      _userController.add(_currentUser);
+      notifyListeners();
     }
   }
 
-  // Register a new user
-  Future<String?> register(String name, String email, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getString(_usersKey);
-    Map<String, dynamic> users = {};
-    
-    if (usersJson != null) {
-      users = jsonDecode(usersJson);
+  // Sign Up
+  Future<UserModel?> signUp(String name, String email, String password) async {
+    try {
+      UserCredential cred = await FirebaseAuth.instance
+        .createUserWithEmailAndPassword(email: email, password: password);
+      
+      await cred.user?.updateDisplayName(name);
+      
+      // Save profile to Firestore
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('profile')
+        .doc('data')
+        .set({
+          'name': name,
+          'email': email,
+          'imageUrl': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      
+      final user = UserModel(name: name, email: email, imageUrl: '');
+      _currentUser = user;
+      _userController.add(_currentUser);
+      notifyListeners();
+      return user;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
     }
-
-    if (users.containsKey(email)) {
-      return "User already exists with this email.";
-    }
-
-    final newUser = UserModel(
-      name: name,
-      email: email,
-      password: password,
-      imageUrl: null, // Default or allow setting later
-    );
-
-    users[email] = newUser.toJson();
-    await prefs.setString(_usersKey, jsonEncode(users));
-    debugPrint("DEBUG AUTH: Database updated. Current users: ${jsonEncode(users)}");
-    
-    // Auto login after register
-    await _setSession(newUser);
-    return null; // Success
   }
 
-  // Login existing user
-  Future<String?> login(String email, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getString(_usersKey);
-    
-    if (usersJson == null) return "No users registered.";
-    
-    final Map<String, dynamic> users = jsonDecode(usersJson);
-    if (!users.containsKey(email)) {
-      return "User not found.";
+  // Sign In
+  Future<UserModel?> signIn(String email, String password) async {
+    try {
+      await FirebaseAuth.instance
+        .signInWithEmailAndPassword(email: email, password: password);
+      final userData = await _fetchUserProfile(email);
+      _currentUser = userData;
+      _userController.add(_currentUser);
+      notifyListeners();
+      return userData;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
     }
-
-    final userMap = users[email];
-    if (userMap['password'] != password) {
-      return "Incorrect password.";
-    }
-
-    final user = UserModel.fromJson(userMap);
-    await _setSession(user);
-    return null; // Success
   }
 
-  Future<void> _setSession(UserModel user) async {
-    _currentUser = user;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_sessionKey, user.email);
-    _userController.add(_currentUser);
-    notifyListeners();
-  }
-
-  // Logout
+  // Sign Out
   Future<void> logout() async {
+    await FirebaseAuth.instance.signOut();
     _currentUser = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_sessionKey);
-    // We DON'T remove the user from _usersKey (that would delete the account)
-    
     _userController.add(null);
     notifyListeners();
   }
 
-  // Update profile
+  // Compatibility alias for logout() if needed, but existing code calls logout()
+  Future<void> signOut() async {
+    await logout();
+  }
+  
+  // Register alias for signUp() - throws exception on failure
+  Future<UserModel?> register(String name, String email, String password) {
+    return signUp(name, email, password);
+  }
+
+  // Login alias for signIn() - throws exception on failure
+  Future<UserModel?> login(String email, String password) {
+    return signIn(email, password);
+  }
+
+  // Fetch profile from Firestore
+  Future<UserModel?> _fetchUserProfile(String email) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('profile')
+        .doc('data')
+        .get();
+      if (doc.exists && doc.data() != null) {
+        return UserModel.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching user profile: $e");
+      return null;
+    }
+  }
+
+  // Update profile (needed for ProfileScreen)
   Future<void> updateUserProfile({
     required String newName,
     String? newImageUrl,
   }) async {
-    if (_currentUser != null) {
-      final updatedUser = UserModel(
-        name: newName,
-        email: _currentUser!.email,
-        password: _currentUser!.password,
-        imageUrl: newImageUrl ?? _currentUser!.imageUrl,
-      );
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || _currentUser == null) return;
 
-      _currentUser = updatedUser;
-      
-      // Update in DB
-      final prefs = await SharedPreferences.getInstance();
-      final usersJson = prefs.getString(_usersKey);
-      if (usersJson != null) {
-        Map<String, dynamic> users = jsonDecode(usersJson);
-        users[_currentUser!.email] = _currentUser!.toJson();
-        await prefs.setString(_usersKey, jsonEncode(users));
-      }
-      
-      _userController.add(_currentUser);
-      notifyListeners();
+    try {
+       // Update Firebase Auth Profile
+       if (newName != user.displayName) {
+         await user.updateDisplayName(newName);
+       }
+       if (newImageUrl != null && newImageUrl != user.photoURL) {
+         await user.updatePhotoURL(newImageUrl);
+       }
+
+       // Update Firestore
+       final updates = <String, dynamic>{
+         'name': newName,
+       };
+       if (newImageUrl != null) {
+         updates['imageUrl'] = newImageUrl;
+       }
+
+       await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUser!.email)
+        .collection('profile')
+        .doc('data')
+        .update(updates);
+
+       // Update local state
+       _currentUser = UserModel(
+         name: newName, 
+         email: _currentUser!.email, 
+         imageUrl: newImageUrl ?? _currentUser!.imageUrl
+       );
+       
+       _userController.add(_currentUser);
+       notifyListeners();
+
+    } catch (e) {
+      debugPrint("Error updating profile: $e");
+      throw "Failed to update profile";
+    }
+  }
+
+  // Handle Firebase errors with readable messages
+  String _handleAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found': return 'No account found with this email.';
+      case 'wrong-password': return 'Incorrect password.';
+      case 'email-already-in-use': return 'An account already exists with this email.';
+      case 'weak-password': return 'Password must be at least 6 characters.';
+      case 'invalid-email': return 'Please enter a valid email address.';
+      case 'network-request-failed': return 'No internet connection.';
+      default: return 'Something went wrong. Please try again.';
     }
   }
 }

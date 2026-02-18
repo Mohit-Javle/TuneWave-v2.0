@@ -1,68 +1,101 @@
-import 'dart:convert';
+// services/personalization_service.dart
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:clone_mp/services/auth_service.dart';
 
 class PersonalizationService extends ChangeNotifier {
-  static const String _completedKey = 'personalization_completed';
-  static const String _dataKey = 'personalization_data';
 
-  // Check if personalization is already completed (locally)
-  Future<bool> isPersonalizationCompleted() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Check if the flag is set to true
-    return prefs.getBool(_completedKey) ?? false;
+  /// Check if personalization is already completed for a user.
+  /// Falls back to SharedPreferences if Firestore fails (e.g. first launch offline).
+  Future<bool> isPersonalizationCompleted(String email) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('personalization')
+        .doc('data')
+        .get();
+      return doc.data()?['isCompleted'] ?? false;
+    } catch (e) {
+      debugPrint('Personalization check failed, falling back to SharedPreferences: $e');
+      // Fallback to SharedPreferences if Firestore fails
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('personalization_completed') ?? false;
+    }
   }
 
-  // Save personalization selections to SharedPreferences 
-  // (Mocking Firestore behavior as requested, since cloud_firestore is not in dependencies)
+  /// Save personalization selections to Firestore.
   Future<void> savePersonalizationData({
+    required String email,
     required List<String> genres,
     required List<String> artists,
     required List<String> moods,
   }) async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) {
-      debugPrint("Error: No user logged in to save personalization data.");
-      return;
-    }
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // Create data map
       final data = {
-        'userId': user.email, // using email as ID since that's what AuthService uses
+        'userId': email,
         'genres': genres,
         'artists': artists,
         'moods': moods,
-        'completedAt': DateTime.now().toIso8601String(),
+        'completedAt': FieldValue.serverTimestamp(),
         'isCompleted': true,
       };
 
-      // Save data locally
-      await prefs.setString(_dataKey, jsonEncode(data));
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('personalization')
+        .doc('data')
+        .set(data);
 
-      // Set completed flag
-      await prefs.setBool(_completedKey, true);
-      
-      debugPrint("Personalization data saved successfully (Local Mock).");
+      debugPrint('Personalization data saved to Firestore for $email');
     } catch (e) {
-      debugPrint("Error saving personalization data: $e");
+      debugPrint('Error saving personalization data: $e');
       rethrow;
     }
   }
 
-  // Mark as completed without saving data (e.g. if skipped)
-  Future<void> setPersonalizationCompleted() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_completedKey, true);
+  /// Mark personalization as completed without saving data (e.g. if skipped).
+  Future<void> setPersonalizationCompleted(String email) async {
+    try {
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('personalization')
+        .doc('data')
+        .set({'isCompleted': true}, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('Error setting personalization completed: $e');
+    }
   }
 
-  // Reset personalization (for testing/debugging)
-  Future<void> resetPersonalization() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_completedKey);
-    await prefs.remove(_dataKey);
+  /// Reset personalization (for testing/debugging).
+  Future<void> resetPersonalization(String email) async {
+    try {
+      await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('personalization')
+        .doc('data')
+        .delete();
+    } catch (e) {
+      debugPrint('Error resetting personalization: $e');
+    }
+  }
+
+  /// Get personalization data for a user.
+  Future<Map<String, dynamic>?> getPersonalizationData(String email) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(email)
+        .collection('personalization')
+        .doc('data')
+        .get();
+      return doc.data();
+    } catch (e) {
+      debugPrint('Error getting personalization data: $e');
+      return null;
+    }
   }
 }

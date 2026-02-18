@@ -7,6 +7,8 @@ import 'package:clone_mp/services/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:clone_mp/services/migration_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,39 +47,47 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkLoginStatus() async {
-    // Initialize AuthService to load saved data
     await AuthService.instance.init();
-
-    // Wait for animations to play
     await Future.delayed(const Duration(seconds: 2));
 
-    if (mounted) {
+    if (!mounted) return;
+
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+
+    if (firebaseUser != null) {
       final user = AuthService.instance.currentUser;
-      // Check if a user was loaded from storage
-      if (user != null) {
-        // Load user-specific data
-        // Check mounted again before using context after async operations
-        final playlistService = Provider.of<PlaylistService>(context, listen: false);
-        final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
-        
-        await playlistService.loadUserData(user.email);
-        await themeNotifier.loadTheme(user.email);
-
-        if (mounted) {
-          // Check Personalization
-          final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-          final isPersonalized = await personalizationService.isPersonalizationCompleted();
-
-          if (isPersonalized) {
-            Navigator.of(context).pushReplacementNamed(AppRoutes.main);
-          } else {
-            Navigator.of(context).pushReplacementNamed(AppRoutes.personalization);
-          }
-        }
-      } else {
-        // If no, go to the login screen
+      if (user == null) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+        return;
       }
+
+      // Migrate SharedPreferences data to Firestore (no-op if already done)
+      await MigrationService().migrateIfNeeded(user.email);
+
+      final playlistService = 
+        Provider.of<PlaylistService>(context, listen: false);
+      final themeNotifier = 
+        Provider.of<ThemeNotifier>(context, listen: false);
+
+      await playlistService.loadUserData(user.email);
+      await themeNotifier.loadTheme(user.email);
+
+      if (!mounted) return;
+
+      final personalizationService = 
+        Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService
+        .isPersonalizationCompleted(user.email);
+
+      if (!mounted) return;
+
+      if (isPersonalized) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.main);
+      } else {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.personalization);
+      }
+    } else {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
     }
   }
 

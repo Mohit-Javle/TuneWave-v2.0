@@ -6,6 +6,7 @@ import 'package:clone_mp/services/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/services/personalization_service.dart';
+import 'package:clone_mp/services/migration_service.dart';
 import 'package:provider/provider.dart';
 
 // This file remains the entry point for your onboarding flow.
@@ -132,37 +133,39 @@ class _LoginPageState extends State<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 2));
-
     final email = _emailController.text;
     final password = _passwordController.text;
 
-    final error = await AuthService.instance.login(email, password);
+    try {
+      await AuthService.instance.login(email, password);
 
-    if (mounted) {
-      if (error != null) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
+      if (!mounted) return;
+
+      // Migrate SharedPreferences data to Firestore (no-op if already done)
+      final user = AuthService.instance.currentUser!;
+      await MigrationService().migrateIfNeeded(user.email);
+
+      // Load user data
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+
+      // Check Personalization Status
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+
+      setState(() => _isLoading = false);
+
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
       } else {
-        // Load user data
-        final user = AuthService.instance.currentUser!;
-        await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
-        await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
-
-        // Check Personalization Status
-        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-        final isPersonalized = await personalizationService.isPersonalizationCompleted();
-
-        setState(() => _isLoading = false);
-        
-        if (isPersonalized) {
-          Navigator.pushReplacementNamed(context, AppRoutes.main);
-        } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.personalization);
-        }
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -358,38 +361,42 @@ class _SignUpPageState extends State<SignUpPage> {
     final email = _emailController.text;
     final password = _passwordController.text;
     
-    final error = await AuthService.instance.register(name, email, password);
+    try {
+      await AuthService.instance.register(name, email, password);
 
-    if (mounted) {
-      if (error != null) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
-        );
+      if (!mounted) return;
+
+      // Migrate SharedPreferences data to Firestore (no-op for new users)
+      final user = AuthService.instance.currentUser!;
+      await MigrationService().migrateIfNeeded(user.email);
+
+      // Load user data (empty for new user, but sets the email in services)
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+
+      // Check Personalization Status
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Account created successfully!"),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
       } else {
-         // Load user data (empty for new user, but sets the email in services)
-        final user = AuthService.instance.currentUser!;
-        await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
-        await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
-
-        // Check Personalization Status
-        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-        final isPersonalized = await personalizationService.isPersonalizationCompleted();
-
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Account created successfully!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        if (isPersonalized) {
-          Navigator.pushReplacementNamed(context, AppRoutes.main);
-        } else {
-          Navigator.pushReplacementNamed(context, AppRoutes.personalization);
-        }
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+      );
     }
   }
 

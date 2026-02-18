@@ -49,6 +49,11 @@ dependencies:
   path_provider: ^2.1.2  # For accessing device storage
   permission_handler: ^11.3.0  # For storage permissions
   flutter_slidable: ^4.0.3
+  
+  # Firebase Dependencies
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  cloud_firestore: ^5.4.4
 
 dev_dependencies:
   flutter_launcher_icons: "^0.13.1"

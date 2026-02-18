@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/services/personalization_service.dart';
+import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/screens/personalization/widgets/genre_selection_widget.dart';
 import 'package:clone_mp/screens/personalization/widgets/artist_selection_widget.dart';
@@ -48,7 +49,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     // Or just mark completed. The prompt says "skips entire personalization".
     // We should probably just mark it done so it doesn't show again.
     final service = Provider.of<PersonalizationService>(context, listen: false);
-    await service.setPersonalizationCompleted();
+    final email = AuthService.instance.currentUser?.email;
+    if (email == null) return;
+    await service.setPersonalizationCompleted(email);
     
     if (mounted) {
       Navigator.pushReplacementNamed(context, AppRoutes.main);
@@ -70,7 +73,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     final service = Provider.of<PersonalizationService>(context, listen: false);
     try {
       // Save data FIRST
+      final email = AuthService.instance.currentUser?.email;
+      if (email == null) return;
       await service.savePersonalizationData(
+        email: email,
         genres: _selectedGenres,
         artists: _selectedArtists,
         moods: _selectedMoods,

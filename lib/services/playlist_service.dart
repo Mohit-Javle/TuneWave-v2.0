@@ -2,7 +2,7 @@
 import 'dart:convert';
 import 'package:clone_mp/models/song_model.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
 class Playlist {
@@ -33,12 +33,11 @@ class Playlist {
 
 class PlaylistService with ChangeNotifier {
   // --- LIKED SONGS ---
-  // --- LIKED SONGS ---
   List<SongModel> _likedSongs = [];
   List<SongModel> get likedSongs => _likedSongs;
   String? _currentUserEmail;
 
-  // Load all user data
+  // Load all user data from Firestore
   Future<void> loadUserData(String userEmail) async {
     _currentUserEmail = userEmail;
     await _loadLikedSongs();
@@ -47,27 +46,35 @@ class PlaylistService with ChangeNotifier {
   }
 
   Future<void> _loadLikedSongs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'liked_songs_$_currentUserEmail';
-    final jsonString = prefs.getString(key);
-    
-    if (jsonString != null) {
-      final List<dynamic> decoded = jsonDecode(jsonString);
-      _likedSongs = decoded.map((json) => SongModel.fromJson(json)).toList();
-    } else {
+    if (_currentUserEmail == null) return;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUserEmail)
+        .collection('likedSongs')
+        .get();
+      _likedSongs = snapshot.docs
+        .map((doc) => SongModel.fromJson(doc.data()))
+        .toList();
+    } catch (e) {
+      debugPrint('Error loading liked songs: $e');
       _likedSongs = [];
     }
   }
 
   Future<void> _loadPlaylists() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'playlists_$_currentUserEmail';
-    final jsonString = prefs.getString(key);
-    
-    if (jsonString != null) {
-      final List<dynamic> decoded = jsonDecode(jsonString);
-      _playlists = decoded.map((json) => Playlist.fromJson(json)).toList();
-    } else {
+    if (_currentUserEmail == null) return;
+    try {
+      final playlistSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUserEmail)
+        .collection('playlists')
+        .get();
+      _playlists = playlistSnapshot.docs
+        .map((doc) => Playlist.fromJson(doc.data()))
+        .toList();
+    } catch (e) {
+      debugPrint('Error loading playlists: $e');
       _playlists = [];
     }
   }
@@ -89,16 +96,38 @@ class PlaylistService with ChangeNotifier {
 
     if (isLiked(song)) {
       _likedSongs.removeWhere((s) => s.id == song.id);
+      notifyListeners();
+
+      // Remove from Firestore
+      try {
+        await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserEmail)
+          .collection('likedSongs')
+          .doc(song.id)
+          .delete();
+      } catch (e) {
+        debugPrint('Error removing liked song: $e');
+      }
     } else {
       _likedSongs.add(song);
+      notifyListeners();
+
+      // Add to Firestore
+      try {
+        await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserEmail)
+          .collection('likedSongs')
+          .doc(song.id)
+          .set({
+            ...song.toJson(),
+            'likedAt': FieldValue.serverTimestamp(),
+          });
+      } catch (e) {
+        debugPrint('Error saving liked song: $e');
+      }
     }
-    notifyListeners();
-    
-    // Persist changes
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'liked_songs_$_currentUserEmail';
-    final jsonString = jsonEncode(_likedSongs.map((s) => s.toJson()).toList());
-    await prefs.setString(key, jsonString);
   }
 
   // --- USER-CREATED PLAYLISTS ---
@@ -106,14 +135,34 @@ class PlaylistService with ChangeNotifier {
   List<Playlist> get playlists => _playlists;
   final Uuid _uuid = const Uuid();
 
-  // (loadUserPlaylists removed as it is merged into loadUserData/private helper)
-
   Future<void> _savePlaylists() async {
     if (_currentUserEmail == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    final key = 'playlists_$_currentUserEmail';
-    final jsonString = jsonEncode(_playlists.map((p) => p.toJson()).toList());
-    await prefs.setString(key, jsonString);
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+
+      // Delete existing playlists first
+      final existing = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUserEmail)
+        .collection('playlists')
+        .get();
+      for (final doc in existing.docs) {
+        batch.delete(doc.reference);
+      }
+
+      // Write current playlists
+      for (final playlist in _playlists) {
+        final ref = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUserEmail)
+          .collection('playlists')
+          .doc(playlist.id);
+        batch.set(ref, playlist.toJson());
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error saving playlists: $e');
+    }
   }
 
   void createPlaylist(String name) {

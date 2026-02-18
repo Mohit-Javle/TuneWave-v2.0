@@ -1,24 +1,29 @@
-// lib/models/user_model.dart
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserModel {
   final String name;
   final String email;
-  final String? password; // For local auth
   final String? imageUrl;
 
   UserModel({
     required this.name,
     required this.email,
-    this.password,
     this.imageUrl,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
-      name: json['name'],
-      email: json['email'],
-      password: json['password'],
+      name: json['name'] ?? '',
+      email: json['email'] ?? '',
       imageUrl: json['imageUrl'],
+    );
+  }
+
+  factory UserModel.fromFirebase(User firebaseUser, Map<String, dynamic>? firestoreData) {
+    return UserModel(
+      name: firestoreData?['name'] ?? firebaseUser.displayName ?? 'User',
+      email: firebaseUser.email ?? '',
+      imageUrl: firestoreData?['imageUrl'] ?? firebaseUser.photoURL,
     );
   }
 
@@ -26,7 +31,6 @@ class UserModel {
     return {
       'name': name,
       'email': email,
-      'password': password,
       'imageUrl': imageUrl,
     };
   }
