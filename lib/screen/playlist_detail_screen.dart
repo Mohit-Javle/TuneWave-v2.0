@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/screen/add_songs_screen.dart';
 import 'package:clone_mp/widgets/download_button.dart';
+import 'package:clone_mp/widgets/falling_item.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -306,37 +307,88 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     return SliverList(
       delegate: SliverChildBuilderDelegate((context, index) {
         final song = playlistSongs[index];
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 4,
+        final tileKey = GlobalKey();
+        Offset? capturedPosition;
+        Size? capturedSize;
+        return Dismissible(
+          key: Key('playlist_${widget.playlist.id}_${song.id}'),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: Colors.red,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: const Icon(Icons.delete, color: Colors.white),
           ),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: Image.network(
-              song.imageUrl,
-              width: 40,
-              height: 40,
-              fit: BoxFit.cover,
-            ),
-          ),
-          title: Text(song.name),
-          subtitle: Text(song.artist),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DownloadButton(song: song),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _showSongOptions(song),
-              ),
-            ],
-          ),
-          onTap: () {
-            musicService.loadPlaylist(playlistSongs, index);
+          confirmDismiss: (direction) async {
+            // Capture position while still in tree
+            final box = tileKey.currentContext?.findRenderObject() as RenderBox?;
+            if (box != null) {
+              capturedPosition = box.localToGlobal(Offset.zero);
+              capturedSize = box.size;
+            }
+            return true;
           },
+          onDismissed: (direction) {
+            final playlistService = Provider.of<PlaylistService>(context, listen: false);
+            triggerFallingItem(
+              context, 
+              _buildSongTile(song, musicService, playlistSongs, index, isStatic: true, isActive: musicService.isActive(song.id)),
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+              manualPosition: capturedPosition,
+              manualSize: capturedSize,
+            );
+            
+            // Remove from playlist
+            playlistService.removeSongFromPlaylist(widget.playlist.id, song.id);
+          },
+          child: Container(
+            key: tileKey,
+            child: _buildSongTile(song, musicService, playlistSongs, index, isActive: musicService.isActive(song.id)),
+          ),
         );
       }, childCount: playlistSongs.length),
+    );
+  }
+
+  Widget _buildSongTile(SongModel song, MusicService musicService, List<SongModel> playlistSongs, int index, {bool isStatic = false, bool isActive = false}) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 4,
+      ),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.network(
+          song.imageUrl,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+        ),
+      ),
+      title: Text(
+        song.name,
+        style: TextStyle(
+          color: isActive ? const Color(0xFFFF6600) : null,
+          fontWeight: isActive ? FontWeight.bold : null,
+        ),
+      ),
+      subtitle: Text(song.artist),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isStatic)
+            const Icon(Icons.download_done, size: 24, color: Colors.grey)
+          else
+            DownloadButton(song: song),
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: isStatic ? null : () => _showSongOptions(song),
+          ),
+        ],
+      ),
+      onTap: isStatic ? null : () {
+        musicService.loadPlaylist(playlistSongs, index);
+      },
     );
   }
 }

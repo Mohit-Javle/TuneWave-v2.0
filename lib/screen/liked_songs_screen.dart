@@ -6,6 +6,7 @@ import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:clone_mp/widgets/falling_item.dart';
 
 class LikedSongsScreen extends StatelessWidget {
   const LikedSongsScreen({super.key});
@@ -95,6 +96,9 @@ class LikedSongsScreen extends StatelessWidget {
               SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final song = likedSongs[index];
+                  final tileKey = GlobalKey();
+                  Offset? capturedPosition;
+                  Size? capturedSize;
                   return Dismissible(
                     key: Key(song.id),
                     direction: DismissDirection.horizontal,
@@ -110,26 +114,31 @@ class LikedSongsScreen extends StatelessWidget {
                           ),
                         );
                         return false; // Don't dismiss
+                      } else if (direction == DismissDirection.endToStart) {
+                        // Capture position while the widget is still in the tree for falling animation
+                        final box = tileKey.currentContext?.findRenderObject() as RenderBox?;
+                        if (box != null) {
+                          capturedPosition = box.localToGlobal(Offset.zero);
+                          capturedSize = box.size;
+                        }
+                        return true; // Allow dismiss for left swipe
                       }
-                      return true; // Allow dismiss for left swipe
+                      return false;
                     },
                     onDismissed: (direction) {
                       if (direction == DismissDirection.endToStart) {
+                        final bool isActive = musicService.isActive(song.id);
+                        // Trigger falling animation using the captured position
+                        triggerFallingItem(
+                          context, 
+                          _buildSongTile(song, textDark, textLight, likedSongs, musicService, playlistService, index, theme, isActive: isActive, isStatic: true),
+                          backgroundColor: theme.colorScheme.surface,
+                          manualPosition: capturedPosition,
+                          manualSize: capturedSize,
+                        );
+                        
                         // Swipe left - Remove from liked
                         playlistService.toggleLike(song);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Removed "${song.name}" from liked songs.',
-                            ),
-                            action: SnackBarAction(
-                              label: 'Undo',
-                              onPressed: () {
-                                playlistService.toggleLike(song);
-                              },
-                            ),
-                          ),
-                        );
                       }
                     },
                     background: Container(
@@ -169,46 +178,14 @@ class LikedSongsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
-                      leading: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          song.imageUrl,
-                          width: 50,
-                          height: 50,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stack) => Container(
-                            width: 50,
-                            height: 50,
-                            color: veryLightOrange.withOpacity(0.5),
-                            child: Icon(Icons.music_note, color: textDark),
-                          ),
+                    child: Container(
+                      key: tileKey,
+                      child: Consumer<MusicService>(
+                        builder: (context, mService, _) => _buildSongTile(
+                          song, textDark, textLight, likedSongs, mService, playlistService, index, theme, 
+                          isActive: mService.isActive(song.id)
                         ),
                       ),
-                      title: Text(
-                        song.name,
-                        style: TextStyle(
-                          color: textDark,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        song.artist,
-                        style: TextStyle(color: textLight),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.favorite, color: primaryOrange),
-                        onPressed: () {
-                          playlistService.toggleLike(song);
-                        },
-                      ),
-                      onTap: () {
-                        musicService.loadPlaylist(likedSongs, index);
-                      },
                     ),
                   );
                 }, childCount: likedSongs.length),
@@ -216,6 +193,60 @@ class LikedSongsScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSongTile(
+    SongModel song, 
+    Color textDark, 
+    Color textLight, 
+    List<SongModel> likedSongs,
+    MusicService musicService,
+    PlaylistService playlistService,
+    int index,
+    ThemeData theme,
+    {bool isActive = false, bool isStatic = false}
+  ) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 8,
+      ),
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          song.imageUrl,
+          width: 50,
+          height: 50,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stack) => Container(
+            width: 50,
+            height: 50,
+            color: veryLightOrange.withOpacity(0.5),
+            child: Icon(Icons.music_note, color: textDark),
+          ),
+        ),
+      ),
+      title: Text(
+        song.name,
+        style: TextStyle(
+          color: isActive ? primaryOrange : textDark,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        song.artist,
+        style: TextStyle(color: textLight),
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.favorite, color: primaryOrange),
+        onPressed: isStatic ? null : () {
+          playlistService.toggleLike(song);
+        },
+      ),
+      onTap: isStatic ? null : () {
+        musicService.loadPlaylist(likedSongs, index);
+      },
     );
   }
 }

@@ -54,7 +54,7 @@ class _GenreSelectionWidgetState extends State<GenreSelectionWidget> {
             "Pick at least 3 genres",
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               fontSize: 16,
             ),
           ),
@@ -91,7 +91,7 @@ class _GenreSelectionWidgetState extends State<GenreSelectionWidget> {
             "${widget.selectedGenres.length} of ${_allGenres.length} selected",
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
               fontSize: 14,
             ),
           ),

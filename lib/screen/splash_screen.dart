@@ -64,6 +64,8 @@ class _SplashScreenState extends State<SplashScreen>
       // Migrate SharedPreferences data to Firestore (no-op if already done)
       await MigrationService().migrateIfNeeded(user.email);
 
+      if (!mounted) return;
+
       final playlistService = 
         Provider.of<PlaylistService>(context, listen: false);
       final themeNotifier = 
@@ -82,12 +84,12 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
 
       if (isPersonalized) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.main);
+        Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.main, (route) => false);
       } else {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.personalization);
+        Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.personalization, (route) => false);
       }
     } else {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
     }
   }
 

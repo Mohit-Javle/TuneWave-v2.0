@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 
 class CreatePlaylistSheet extends StatefulWidget {
   const CreatePlaylistSheet({super.key});
@@ -102,14 +103,7 @@ class _CreatePlaylistSheetState extends State<CreatePlaylistSheet> {
                   listen: false,
                 ).createPlaylist(_nameController.text);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      "Playlist '${_nameController.text}' created!",
-                    ),
-                    backgroundColor: primaryOrange,
-                  ),
-                );
+                showMusicToast(context, 'Playlist Created', type: ToastType.success);
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(

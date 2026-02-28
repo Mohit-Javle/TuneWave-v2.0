@@ -1,12 +1,13 @@
 // services/music_service.dart
 
-import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart';
 import '../models/song_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'auth_service.dart';
+import 'package:palette_generator/palette_generator.dart';
+import 'package:flutter/material.dart';
 
 import 'download_service.dart';
 
@@ -28,6 +29,14 @@ class MusicService with ChangeNotifier {
   final ValueNotifier<bool> isRepeatNotifier = ValueNotifier(false);
   final ValueNotifier<bool> isShuffleNotifier = ValueNotifier(false);
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier(null);
+  final ValueNotifier<Color?> currentAccentColorNotifier = ValueNotifier(null);
+
+  bool isActive(String songId) {
+    return currentSongNotifier.value?.id == songId;
+  }
+
+  SongModel? get currentSong => currentSongNotifier.value;
+  bool get isPlaying => isPlayingNotifier.value;
 
   List<SongModel> _originalPlaylist = [];
 
@@ -70,12 +79,37 @@ class MusicService with ChangeNotifier {
            debugPrint("🎵 MusicService: Setting currentSongNotifier to ${song.name}");
            currentSongNotifier.value = song;
            addToHistory(song);
+           _updateAccentColor(song.imageUrl);
         }
         totalDurationNotifier.value = mediaItem.duration ?? Duration.zero;
       }
     });
 
     _loadHistory();
+  }
+
+  Future<void> _updateAccentColor(String? imageUrl) async {
+    if (imageUrl == null || imageUrl.isEmpty) {
+      currentAccentColorNotifier.value = null;
+      return;
+    }
+
+    try {
+      final PaletteGenerator paletteGenerator = await PaletteGenerator.fromImageProvider(
+        NetworkImage(imageUrl),
+        maximumColorCount: 20,
+      );
+
+      // Prefer vibrant or dominant color
+      final Color? color = paletteGenerator.vibrantColor?.color ?? 
+                          paletteGenerator.dominantColor?.color;
+      
+      currentAccentColorNotifier.value = color;
+      debugPrint("🎨 MusicService: Extracted accent color: $color");
+    } catch (e) {
+      debugPrint("🎨 MusicService: Color extraction failed: $e");
+      currentAccentColorNotifier.value = null;
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -286,6 +320,7 @@ class MusicService with ChangeNotifier {
     await (_audioHandler as dynamic).clearQueue();
     _playlist.clear();
     _originalPlaylist.clear();
+    currentSongNotifier.value = null;
     notifyListeners();
   }
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/song_model.dart';
 import '../services/download_service.dart';
+import '../widgets/music_toast.dart';
 
 class DownloadButton extends StatelessWidget {
   final SongModel song;
@@ -43,12 +44,7 @@ class DownloadButton extends StatelessWidget {
                 InkWell(
                   onTap: () {
                     downloadService.cancelDownload(song.id);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Download canceled'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
+                    showMusicToast(context, 'Download canceled', type: ToastType.info);
                   },
                   child: Icon(
                     Icons.close,
@@ -97,15 +93,10 @@ class DownloadButton extends StatelessWidget {
                 if (confirmed == true) {
                   final success = await downloadService.deleteSong(song.id);
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          success
-                              ? 'Download deleted'
-                              : 'Failed to delete download',
-                        ),
-                        duration: const Duration(seconds: 2),
-                      ),
+                    showMusicToast(
+                      context, 
+                      success ? 'Download deleted' : 'Failed to delete download', 
+                      type: success ? ToastType.info : ToastType.error
                     );
                   }
                 }
@@ -134,26 +125,15 @@ class DownloadButton extends StatelessWidget {
             color: color,
           ),
           onPressed: () async {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Downloading "${song.name}"...'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            showMusicToast(context, 'Downloading "${song.name}"...', type: ToastType.info);
 
             final downloadedSong = await downloadService.downloadSong(song);
             
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    downloadedSong != null
-                        ? 'Download complete!'
-                        : 'Download failed',
-                  ),
-                  backgroundColor: downloadedSong != null ? Colors.green : Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
+              showMusicToast(
+                context, 
+                downloadedSong != null ? 'Download complete!' : 'Download failed',
+                type: downloadedSong != null ? ToastType.success : ToastType.error
               );
             }
           },

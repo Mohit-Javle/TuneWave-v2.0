@@ -128,8 +128,12 @@ class AuthService extends ChangeNotifier {
        if (newName != user.displayName) {
          await user.updateDisplayName(newName);
        }
+       // Firebase Auth's photoURL has a length limit and will crash if given a large Base64 string.
+       // Only save standard http/https URLs to the Auth user, but save everything (including Base64) to Firestore.
        if (newImageUrl != null && newImageUrl != user.photoURL) {
-         await user.updatePhotoURL(newImageUrl);
+         if (!newImageUrl.startsWith('data:image')) {
+           await user.updatePhotoURL(newImageUrl);
+         }
        }
 
        // Update Firestore
@@ -166,13 +170,14 @@ class AuthService extends ChangeNotifier {
   // Handle Firebase errors with readable messages
   String _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
+      case 'invalid-credential': return 'Invalid email or password.';
       case 'user-not-found': return 'No account found with this email.';
       case 'wrong-password': return 'Incorrect password.';
       case 'email-already-in-use': return 'An account already exists with this email.';
       case 'weak-password': return 'Password must be at least 6 characters.';
       case 'invalid-email': return 'Please enter a valid email address.';
       case 'network-request-failed': return 'No internet connection.';
-      default: return 'Something went wrong. Please try again.';
+      default: return 'Something went wrong (${e.code}). Please try again.';
     }
   }
 }

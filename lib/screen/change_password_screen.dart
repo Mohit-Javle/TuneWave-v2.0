@@ -2,6 +2,8 @@
 // ignore_for_file: use_build_context_synchronously, unused_field, deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -31,20 +33,45 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
-      // Simulate network request
-      await Future.delayed(const Duration(seconds: 2));
-
-      // In a real app, you would call your auth service here.
-      // e.g., AuthService.instance.changePassword(...)
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password changed successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pop(context);
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null && user.email != null) {
+          // Verify current password first
+          final cred = EmailAuthProvider.credential(
+            email: user.email!, 
+            password: _currentPasswordController.text
+          );
+          
+          await user.reauthenticateWithCredential(cred);
+          
+          // Update to new password
+          await user.updatePassword(_newPasswordController.text);
+          
+          if (!mounted) return;
+          showMusicToast(context, "Password changed successfully!", type: ToastType.success);
+          Navigator.pop(context);
+        } else {
+          throw Exception("User not logged in.");
+        }
+      } catch (e) {
+        if (!mounted) return;
+        String errorMessage = "Failed to change password.";
+        if (e is FirebaseAuthException) {
+          if (e.code == 'invalid-credential') {
+            errorMessage = "Current password is incorrect.";
+          } else {
+            errorMessage = e.message ?? errorMessage;
+          }
+        } else {
+          errorMessage = e.toString();
+        }
+        
+        showMusicToast(context, errorMessage, type: ToastType.error);
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
   }
 

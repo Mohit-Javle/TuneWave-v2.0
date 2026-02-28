@@ -3,6 +3,7 @@
 import 'package:clone_mp/services/music_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:clone_mp/widgets/falling_item.dart';
 
 class QueueScreen extends StatelessWidget {
   const QueueScreen({super.key});
@@ -72,6 +73,9 @@ class QueueScreen extends StatelessWidget {
                 final song = queue[index];
                 final isCurrentSong = index == currentIndex;
 
+                final tileKey = GlobalKey();
+                Offset? capturedPosition;
+                Size? capturedSize;
                 return Dismissible(
                   key: ValueKey(song.id + index.toString()),
                   background: Container(
@@ -91,106 +95,124 @@ class QueueScreen extends StatelessWidget {
                       );
                       return false;
                     }
+                    
+                    // Capture position while still in tree
+                    final box = tileKey.currentContext?.findRenderObject() as RenderBox?;
+                    if (box != null) {
+                      capturedPosition = box.localToGlobal(Offset.zero);
+                      capturedSize = box.size;
+                    }
                     return true;
                   },
                   onDismissed: (direction) {
-                    musicService.removeFromQueue(index);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('${song.name} removed from queue'),
-                        action: SnackBarAction(
-                          label: 'Undo',
-                          onPressed: () {
-                            // Re-add at same position
-                            musicService.reorderQueue(queue.length - 1, index);
-                          },
-                        ),
-                      ),
+                    triggerFallingItem(
+                      context, 
+                      _buildQueueTile(song, isCurrentSong, theme, musicService, index, isStatic: true),
+                      backgroundColor: theme.scaffoldBackgroundColor,
+                      manualPosition: capturedPosition,
+                      manualSize: capturedSize,
                     );
+                    
+                    musicService.removeFromQueue(index);
                   },
                   child: Container(
-                    color: isCurrentSong
-                        ? const Color(0xFFFF6600).withOpacity(0.1)
-                        : Colors.transparent,
-                    child: ListTile(
-                      leading: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.drag_handle,
-                            color: theme.colorScheme.onSurface.withOpacity(0.5),
-                          ),
-                          const SizedBox(width: 8),
-                          Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
-                                  song.imageUrl,
-                                  width: 50,
-                                  height: 50,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    width: 50,
-                                    height: 50,
-                                    color: Colors.grey,
-                                    child: const Icon(Icons.music_note),
-                                  ),
-                                ),
-                              ),
-                              if (isCurrentSong)
-                                Positioned.fill(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: const Icon(
-                                      Icons.play_arrow,
-                                      color: Colors.white,
-                                      size: 30,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      title: Text(
-                        song.name,
-                        style: TextStyle(
-                          color: isCurrentSong
-                              ? const Color(0xFFFF6600)
-                              : theme.colorScheme.onSurface,
-                          fontWeight: isCurrentSong
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        song.artist,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: isCurrentSong
-                          ? const Icon(
-                              Icons.equalizer,
-                              color: Color(0xFFFF6600),
-                            )
-                          : null,
-                      onTap: () {
-                        musicService.skipToQueueItem(index);
-                      },
-                    ),
+                    key: tileKey,
+                    child: _buildQueueTile(song, isCurrentSong, theme, musicService, index),
                   ),
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildQueueTile(
+    dynamic song, 
+    bool isCurrentSong, 
+    ThemeData theme, 
+    MusicService musicService,
+    int index,
+    {bool isStatic = false}
+  ) {
+    return Container(
+      key: ValueKey('tile_${song.id}_$index'),
+      color: isCurrentSong
+          ? const Color(0xFFFF6600).withOpacity(0.1)
+          : Colors.transparent,
+      child: ListTile(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.drag_handle,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+            ),
+            const SizedBox(width: 8),
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.network(
+                    song.imageUrl,
+                    width: 50,
+                    height: 50,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 50,
+                      height: 50,
+                      color: Colors.grey,
+                      child: const Icon(Icons.music_note),
+                    ),
+                  ),
+                ),
+                if (isCurrentSong)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        title: Text(
+          song.name,
+          style: TextStyle(
+            color: isCurrentSong
+                ? const Color(0xFFFF6600)
+                : theme.colorScheme.onSurface,
+            fontWeight: isCurrentSong
+                ? FontWeight.bold
+                : FontWeight.normal,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          song.artist,
+          style: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: isCurrentSong
+            ? const Icon(
+                Icons.equalizer,
+                color: Color(0xFFFF6600),
+              )
+            : null,
+        onTap: isStatic ? null : () {
+          musicService.skipToQueueItem(index);
+        },
+      ),
     );
   }
 

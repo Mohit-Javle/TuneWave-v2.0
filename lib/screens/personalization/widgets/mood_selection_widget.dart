@@ -49,7 +49,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget> {
             "Select all that apply",
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               fontSize: 16,
             ),
           ),
@@ -75,7 +75,7 @@ class _MoodSelectionWidgetState extends State<MoodSelectionWidget> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: isSelected 
-                        ? const Color(0xFFFF6600).withOpacity(0.15) 
+                        ? const Color(0xFFFF6600).withValues(alpha: 0.15) 
                         : (isDark ? Colors.grey[800] : Colors.grey[100]),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(

@@ -1,13 +1,19 @@
 // lib/screen/profile_screen.dart
 // ignore_for_file: deprecated_member_use
 
+import 'dart:convert';
+import 'package:clone_mp/widgets/avatar_image_provider.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/models/user_model.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/screen/listening_history_screen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -114,32 +120,116 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploadingImage = false;
+
+  Future<void> _pickAndUploadImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 256,   // Reduced from 512
+        maxHeight: 256,  // Reduced from 512 
+        imageQuality: 50, // Reduced from 75 to keep Base64 safely under 1MB Firestore limit
+      );
+
+      if (pickedFile == null) return;
+      
+      setState(() {
+        _isUploadingImage = true;
+      });
+
+      final bytes = await pickedFile.readAsBytes();
+      if (bytes.isEmpty) throw Exception("Selected image file is empty.");
+
+      final email = AuthService.instance.currentUser?.email;
+      if (email == null) throw Exception("User missing email context");
+
+      // Generate a base64 string and save it directly to Firestore to bypass broken Firebase Storage
+      final String base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      
+      await AuthService.instance.updateUserProfile(
+        newName: AuthService.instance.currentUser!.name,
+        newImageUrl: base64Image,
+      );
+
+      if (mounted) {
+        showMusicToast(context, "Profile picture updated successfully!", type: ToastType.success);
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        showMusicToast(context, "Firestore Error: ${e.code} - ${e.message}", type: ToastType.error);
+      }
+    } catch (e) {
+      if (mounted) {
+        showMusicToast(context, "Failed to update profile picture: $e", type: ToastType.error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingImage = false;
+        });
+      }
+    }
+  }
+
   void _showImageSelectionSheet(BuildContext context) {
     final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: theme.colorScheme.surface,
-      builder: (ctx) => GridView.builder(
-        padding: const EdgeInsets.all(16.0),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.photo_camera, color: theme.colorScheme.primary),
+              title: Text('Take a photo', style: TextStyle(color: theme.colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.photo_library, color: theme.colorScheme.primary),
+              title: Text('Choose from gallery', style: TextStyle(color: theme.colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadImage(ImageSource.gallery);
+              },
+            ),
+          ],
         ),
-        itemCount: avatarImages.length,
-        itemBuilder: (context, index) {
-          final imageUrl = avatarImages[index];
-          return GestureDetector(
-            onTap: () {
-              AuthService.instance.updateUserProfile(
-                newName: AuthService.instance.currentUser!.name,
-                newImageUrl: imageUrl,
-              );
-              Navigator.pop(context);
-            },
-            child: CircleAvatar(backgroundImage: NetworkImage(imageUrl)),
-          );
-        },
+      ),
+    );
+  }
+
+  void _showEditOptions(BuildContext context, UserModel user) {
+    final theme = Theme.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: theme.colorScheme.surface,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(Icons.person_outline, color: theme.colorScheme.primary),
+              title: Text('Edit Name', style: TextStyle(color: theme.colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditNameSheet(context, user);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.image_outlined, color: theme.colorScheme.primary),
+              title: Text('Change Profile Picture', style: TextStyle(color: theme.colorScheme.onSurface)),
+              onTap: () {
+                Navigator.pop(context);
+                _showImageSelectionSheet(context);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,9 +300,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: CircleAvatar(
                             key: ValueKey(user.imageUrl),
                             radius: 60,
-                            backgroundImage: NetworkImage(
-                              user.imageUrl ?? placeholderUrl,
-                            ),
+                            backgroundImage: getAvatarImageProvider(user.imageUrl, placeholderUrl),
+                            child: _isUploadingImage 
+                                ? Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black45,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(color: primaryOrange),
+                                    ),
+                                  )
+                                : null,
                           ),
                         ),
                         GestureDetector(
@@ -338,51 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showEditOptions(BuildContext context, UserModel currentUser) {
-    final theme = Theme.of(context);
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: theme.colorScheme.surface,
-          title: Text(
-            "Edit Profile",
-            style: TextStyle(color: theme.colorScheme.onSurface),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ListTile(
-                leading: Icon(Icons.edit, color: theme.unselectedWidgetColor),
-                title: Text(
-                  'Change Name',
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showEditNameSheet(context, currentUser);
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.photo_camera,
-                  color: theme.unselectedWidgetColor,
-                ),
-                title: Text(
-                  'Change Avatar',
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showImageSelectionSheet(context);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+
 
   Column _buildStatColumn(String title, String count) {
     final theme = Theme.of(context);

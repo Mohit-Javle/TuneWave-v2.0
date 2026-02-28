@@ -14,7 +14,8 @@ class ArtistModel {
   factory ArtistModel.fromOfficialJson(Map<String, dynamic> json) {
      String getImageUrl(String? url) {
       if (url == null || url.isEmpty) return '';
-      return url.replaceAll('150x150', '500x500'); // Better quality
+      // JioSaavn returns various low-res strings like 50x50, 150x150, etc.
+      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
     }
 
     return ArtistModel(

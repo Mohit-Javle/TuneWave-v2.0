@@ -23,8 +23,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   List<String> _selectedGenres = [];
   List<String> _selectedArtists = [];
   List<String> _selectedMoods = [];
-  
-  bool _isSaving = false;
 
   void _nextPage() {
     if (_currentPage < _totalPages - 1) {
@@ -59,10 +57,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
   }
 
   Future<void> _finishFlow() async {
-    setState(() {
-      _isSaving = true;
-    });
-
     // Animate to "Done" screen (Page 4, 0-indexed)
     _pageController.animateToPage(
       4, 
@@ -98,9 +92,6 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        setState(() {
-          _isSaving = false;
-        });
         // Optionally go back to previous page? 
         // For now, staying on Done page with error is okay, 
         // or we could go back to the previous step.
@@ -151,7 +142,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: _currentPage / 4.0, // 1/4, 2/4, 3/4
-                            backgroundColor: theme.unselectedWidgetColor.withOpacity(0.2),
+                            backgroundColor: theme.unselectedWidgetColor.withValues(alpha: 0.2),
                             valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF6600)),
                             minHeight: 6,
                           ),
@@ -161,7 +152,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                     Text(
                       "Step $_currentPage/4",
                       style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.5),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -179,7 +170,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
                     child: Text(
                       "Skip", 
                       style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       )
                     ),
                   ),
@@ -292,7 +283,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16,
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 60),
@@ -321,7 +312,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
           textAlign: TextAlign.center,
           style: TextStyle(
              fontSize: 16,
-             color: theme.colorScheme.onSurface.withOpacity(0.7),
+             color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
         const SizedBox(height: 40),

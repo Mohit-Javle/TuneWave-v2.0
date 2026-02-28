@@ -4,6 +4,8 @@
 import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/theme_notifier.dart';
+import 'package:clone_mp/services/music_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
@@ -84,6 +86,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 await AuthService.instance.logout();
                 if (context.mounted) {
                   Provider.of<PlaylistService>(context, listen: false).clearData();
+                  
+                  final musicService = Provider.of<MusicService>(context, listen: false);
+                  await musicService.pause();
+                  if (!context.mounted) return;
+                  await musicService.clearQueue();
+                  if (!context.mounted) return;
+                  
+                  Provider.of<UiStateService>(context, listen: false).hideMiniPlayer();
+                  
                   // Reset theme to light or keep? Let's keep as is or reset.
                   // Provider.of<ThemeNotifier>(context, listen: false).setTheme(ThemeMode.light);
                   
@@ -192,17 +203,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icons.notifications_active_outlined,
                 color: iconColor,
               ),
-            ),
-            _buildSectionHeader('About'),
-            ListTile(
-              leading: Icon(Icons.info_outline, color: iconColor),
-              title: Text('About this App', style: TextStyle(color: textDark)),
-              onTap: () {},
-            ),
-            ListTile(
-              leading: Icon(Icons.privacy_tip_outlined, color: iconColor),
-              title: Text('Privacy Policy', style: TextStyle(color: textDark)),
-              onTap: () {},
             ),
           ],
         ),

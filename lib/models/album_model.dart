@@ -16,7 +16,7 @@ class AlbumModel {
   factory AlbumModel.fromOfficialJson(Map<String, dynamic> json) {
     String getImageUrl(String? url) {
       if (url == null || url.isEmpty) return '';
-      return url.replaceAll('150x150', '500x500');
+      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
     }
 
     return AlbumModel(

@@ -34,6 +34,7 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
       AppRoutes.inviteFriends,
       AppRoutes.changePassword,
       AppRoutes.personalization,
+      AppRoutes.login,
     ];
     return hiddenRoutes.contains(route);
   }
@@ -63,7 +64,8 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                 final showMiniPlayer = currentSong != null && 
                                        !isOnPlayerScreen && 
                                        !_shouldHideMiniPlayer(currentRoute) &&
-                                       uiStateService.isMiniPlayerVisible;
+                                       uiStateService.isMiniPlayerVisible &&
+                                       !uiStateService.isModalActive;
                 
                 // Determine bottom padding based on current route
                 // Also add keyboard height so it sits above keyboard
@@ -84,11 +86,17 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                         child: SafeArea(
                           top: false,
                           bottom: bottomPadding == 0,
-                          child: _MiniPlayerBar(
-                            song: currentSong,
-                            isPlaying: isPlaying,
-                            musicService: widget.musicService,
-                            navigatorKey: widget.navigatorKey,
+                          child: ValueListenableBuilder<Color?>(
+                            valueListenable: widget.musicService.currentAccentColorNotifier,
+                            builder: (context, accentColor, _) {
+                              return _MiniPlayerBar(
+                                song: currentSong,
+                                isPlaying: isPlaying,
+                                musicService: widget.musicService,
+                                navigatorKey: widget.navigatorKey,
+                                accentColor: accentColor,
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -123,12 +131,14 @@ class _MiniPlayerBar extends StatelessWidget {
   final bool isPlaying;
   final MusicService musicService;
   final GlobalKey<NavigatorState> navigatorKey;
+  final Color? accentColor;
 
   const _MiniPlayerBar({
     required this.song,
     required this.isPlaying,
     required this.musicService,
     required this.navigatorKey,
+    this.accentColor,
   });
 
   void _togglePlayPause() {
@@ -243,7 +253,7 @@ class _MiniPlayerBar extends StatelessWidget {
                                   isPlaying
                                       ? Icons.pause_circle_filled
                                       : Icons.play_circle_filled,
-                                  color: const Color(0xFFFF6600),
+                                  color: accentColor ?? const Color(0xFFFF6600),
                                   size: 32,
                                 ),
                               ),
@@ -255,7 +265,7 @@ class _MiniPlayerBar extends StatelessWidget {
                                 ? currentPosition.inMilliseconds / totalDuration.inMilliseconds
                                 : 0.0,
                             backgroundColor: theme.unselectedWidgetColor.withValues(alpha: 0.2),
-                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF6600)),
+                            valueColor: AlwaysStoppedAnimation<Color>(accentColor ?? const Color(0xFFFF6600)),
                             minHeight: 3,
                           ),
                         ],
