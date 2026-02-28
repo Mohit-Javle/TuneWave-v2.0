@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/download_service.dart';
 import '../services/music_service.dart';
+import '../widgets/falling_item.dart';
 
 import '../widgets/download_button.dart';
 
@@ -179,7 +180,44 @@ class DownloadsPage extends StatelessWidget {
                   itemCount: downloadService.downloadedSongs.length,
                   itemBuilder: (context, index) {
                     final song = downloadService.downloadedSongs[index];
-                    return _buildSongTile(context, song);
+                    final tileKey = GlobalKey();
+                    Offset? capturedPosition;
+                    Size? capturedSize;
+                    return Dismissible(
+                      key: Key('download_${song.id}'),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      confirmDismiss: (direction) async {
+                        // Capture position while still in tree
+                        final box = tileKey.currentContext?.findRenderObject() as RenderBox?;
+                        if (box != null) {
+                          capturedPosition = box.localToGlobal(Offset.zero);
+                          capturedSize = box.size;
+                        }
+                        return true;
+                      },
+                      onDismissed: (direction) {
+                        triggerFallingItem(
+                          context,
+                          _buildSongTile(context, song, isStatic: true, theme: Theme.of(context)),
+                          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                          manualPosition: capturedPosition,
+                          manualSize: capturedSize,
+                        );
+
+                        // Delete the song
+                        downloadService.deleteSong(song.id);
+                      },
+                      child: Container(
+                        key: tileKey,
+                        child: _buildSongTile(context, song, theme: Theme.of(context)),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -190,7 +228,7 @@ class DownloadsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSongTile(BuildContext context, SongModel song) {
+  Widget _buildSongTile(BuildContext context, SongModel song, {bool isStatic = false, ThemeData? theme}) {
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(8),
@@ -247,26 +285,30 @@ class DownloadsPage extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.play_arrow),
-            onPressed: () {
-              final musicService = Provider.of<MusicService>(
-                context,
-                listen: false,
-              );
-              final downloadService = Provider.of<DownloadService>(
-                context,
-                listen: false,
-              );
-              
-              // Play all downloaded songs starting from this one
-              musicService.loadPlaylist(
-                downloadService.downloadedSongs,
-                downloadService.downloadedSongs.indexOf(song),
-              );
-            },
-          ),
-          DownloadButton(song: song),
+          if (isStatic)
+            const Icon(Icons.download_done, color: Colors.green)
+          else ...[
+            IconButton(
+              icon: const Icon(Icons.play_arrow),
+              onPressed: () {
+                final musicService = Provider.of<MusicService>(
+                  context,
+                  listen: false,
+                );
+                final downloadService = Provider.of<DownloadService>(
+                  context,
+                  listen: false,
+                );
+                
+                // Play all downloaded songs starting from this one
+                musicService.loadPlaylist(
+                  downloadService.downloadedSongs,
+                  downloadService.downloadedSongs.indexOf(song),
+                );
+              },
+            ),
+            DownloadButton(song: song),
+          ],
         ],
       ),
     );

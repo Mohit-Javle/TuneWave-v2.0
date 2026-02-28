@@ -11,6 +11,8 @@ class SongModel {
   final String? localFilePath; // Local file path for offline playback
   final DateTime? downloadedAt; // When the song was downloaded
 
+  final String? duration; // Song duration in seconds or formatted string
+
   SongModel({
     required this.id,
     required this.name,
@@ -19,6 +21,7 @@ class SongModel {
     required this.imageUrl,
     required this.downloadUrl,
     required this.hasLyrics,
+    this.duration,
     this.playedAt,
     this.isDownloaded = false,
     this.localFilePath,
@@ -30,7 +33,7 @@ class SongModel {
     // Helper to get high quality image
     String getImageUrl(String? url) {
       if (url == null || url.isEmpty) return '';
-      return url.replaceAll('150x150', '500x500');
+      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500');
     }
 
     // Helper to get artist names
@@ -56,6 +59,7 @@ class SongModel {
       imageUrl: getImageUrl(json['image']),
       downloadUrl: decryptedUrl,
       hasLyrics: moreInfo['has_lyrics'] == 'true',
+      duration: moreInfo['duration']?.toString(),
     );
   }
 
@@ -70,11 +74,20 @@ class SongModel {
         album: json['album'],
         imageUrl: json['imageUrl'],
         downloadUrl: json['downloadUrl'],
-        hasLyrics: json['hasLyrics'],
-        playedAt: json['playedAt'] != null ? DateTime.parse(json['playedAt']) : null,
+        hasLyrics: json['hasLyrics'] ?? false,
+        duration: json['duration'],
+        playedAt: json['playedAt'] != null 
+            ? (json['playedAt'] is String 
+                ? DateTime.tryParse(json['playedAt']) 
+                : (json['playedAt'] as dynamic).toDate()) 
+            : null,
         isDownloaded: json['isDownloaded'] ?? false,
         localFilePath: json['localFilePath'],
-        downloadedAt: json['downloadedAt'] != null ? DateTime.parse(json['downloadedAt']) : null,
+        downloadedAt: json['downloadedAt'] != null 
+            ? (json['downloadedAt'] is String 
+                ? DateTime.tryParse(json['downloadedAt']) 
+                : (json['downloadedAt'] as dynamic).toDate()) 
+            : null,
       );
     }
     return SongModel.fromOfficialJson(json);
@@ -90,6 +103,7 @@ class SongModel {
       'imageUrl': imageUrl,
       'downloadUrl': downloadUrl,
       'hasLyrics': hasLyrics,
+      'duration': duration,
       'playedAt': playedAt?.toIso8601String(),
       'isDownloaded': isDownloaded,
       'localFilePath': localFilePath,

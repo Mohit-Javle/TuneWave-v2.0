@@ -243,6 +243,8 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
+  final List<int> _navigationHistory = [0]; // Added to track tab visits
+  
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -285,6 +287,11 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     if (_selectedIndex != index) {
       setState(() {
         _selectedIndex = index;
+        
+        // Update history: avoid consecutive duplicates
+        if (_navigationHistory.last != index) {
+          _navigationHistory.add(index);
+        }
       });
       _animationController.reset();
       _animationController.forward();
@@ -311,19 +318,45 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     _pages[0] = HomeScreen(
       onPlaySong: _playNewSong,
       onTogglePlayPause: _togglePlayPause,
-      currentSong: _musicService.currentSongNotifier.value,
-      isPlaying: _musicService.isPlayingNotifier.value,
     );
 
     return WillPopScope(
       onWillPop: () async {
-        if (_selectedIndex != 0) {
-          setState(() {
-            _selectedIndex = 0;
-          });
-          return false;
+        // If drawer is open, let the default pop behavior close the drawer
+        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+          return true;
         }
-        return true;
+
+        if (_navigationHistory.length > 1) {
+          // Navigating back through the tab history
+          setState(() {
+            _navigationHistory.removeLast(); // Remove current
+            _selectedIndex = _navigationHistory.last; // Go to previous
+          });
+          _animationController.reset();
+          _animationController.forward();
+          return false; // Do not pop the app
+        } 
+        
+        // If we are at the root (Home), show exit confirmation
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exit App'),
+            content: const Text('Do you want to exit TuneWave?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        );
+        return shouldExit ?? false;
       },
       child: Scaffold(
         key: _scaffoldKey,

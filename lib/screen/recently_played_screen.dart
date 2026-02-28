@@ -81,7 +81,9 @@ class RecentlyPlayedScreen extends StatelessWidget {
                   title: Text(
                     song.name,
                     style: TextStyle(
-                      color: theme.colorScheme.onSurface,
+                      color: musicService.isActive(song.id)
+                          ? const Color(0xFFFF6600)
+                          : theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,

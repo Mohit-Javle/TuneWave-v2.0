@@ -8,6 +8,7 @@ import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/migration_service.dart';
 import 'package:provider/provider.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 
 // This file remains the entry point for your onboarding flow.
 // It now loads the AuthPager which contains the separate Login and Sign Up pages.
@@ -156,16 +157,14 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _isLoading = false);
 
       if (isPersonalized) {
-        Navigator.pushReplacementNamed(context, AppRoutes.main);
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.main, (route) => false);
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      showMusicToast(context, e.toString(), type: ToastType.error);
     }
   }
 
@@ -173,12 +172,7 @@ class _LoginPageState extends State<LoginPage> {
     final email = _emailController.text;
     if (email.isEmpty ||
         !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter your email address first."),
-          backgroundColor: Colors.red,
-        ),
-      );
+      showMusicToast(context, "Please enter your email address first.", type: ToastType.error);
       return;
     }
     setState(() {
@@ -192,12 +186,7 @@ class _LoginPageState extends State<LoginPage> {
 
     await Future.delayed(const Duration(seconds: 2));
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Password has been reset successfully! Please log in."),
-        backgroundColor: Colors.green,
-      ),
-    );
+    showMusicToast(context, "Password has been reset successfully! Please log in.", type: ToastType.success);
 
     setState(() {
       _isLoading = false;
@@ -379,24 +368,17 @@ class _SignUpPageState extends State<SignUpPage> {
       final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
 
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Account created successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
+      showMusicToast(context, "Account created successfully!", type: ToastType.success);
 
       if (isPersonalized) {
-        Navigator.pushReplacementNamed(context, AppRoutes.main);
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.main, (route) => false);
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+        Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      showMusicToast(context, e.toString(), type: ToastType.error);
     }
   }
 

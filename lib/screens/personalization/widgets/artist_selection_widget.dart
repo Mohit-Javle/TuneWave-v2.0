@@ -94,7 +94,6 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     if (_isLoading) {
       return const Center(
@@ -107,7 +106,7 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
         child: Text(
           "Could not load artists.\nPlease check your connection.",
           textAlign: TextAlign.center,
-          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
         ),
       );
     }
@@ -120,7 +119,7 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
             "Pick at least 2 artists",
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
               fontSize: 16,
             ),
           ),
@@ -159,7 +158,7 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
                             boxShadow: [
                               if (isSelected)
                                 BoxShadow(
-                                  color: const Color(0xFFFF6600).withOpacity(0.4),
+                                  color: const Color(0xFFFF6600).withValues(alpha: 0.4),
                                   blurRadius: 8,
                                   spreadRadius: 2,
                                 ),

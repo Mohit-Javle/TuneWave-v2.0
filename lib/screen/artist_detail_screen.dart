@@ -4,7 +4,9 @@ import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
-import 'package:clone_mp/widgets/download_button.dart';
+import 'package:clone_mp/services/download_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
@@ -101,13 +103,147 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
     if (topSongs.isEmpty) return;
     final shuffled = List<SongModel>.from(topSongs)..shuffle();
     musicService.loadPlaylist(shuffled, 0);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Shuffling artist songs...'),
-        backgroundColor: Color(0xFFFF6600),
-        duration: Duration(seconds: 1),
+    showMusicToast(context, 'Shuffling artist songs...', type: ToastType.success);
+  }
+
+  void _showMoreMenu(BuildContext context, SongModel song) {
+    final uiStateService = Provider.of<UiStateService>(context, listen: false);
+    final musicService = Provider.of<MusicService>(context, listen: false);
+    
+    // Hide miniplayer when modal opens
+    uiStateService.setModalActive(true);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Consumer<DownloadService>(
+          builder: (context, downloadService, child) {
+            final isDownloaded = downloadService.isSongDownloaded(song.id);
+            final isDownloading = downloadService.isDownloading(song.id);
+            
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        song.imageUrl,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    title: Text(song.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(song.artist),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: Icon(
+                      isDownloaded ? Icons.download_done_rounded : Icons.download_rounded, 
+                      color: isDownloaded ? Colors.green : const Color(0xFFFF6600)
+                    ),
+                    title: Text(isDownloading ? "Downloading..." : (isDownloaded ? "Delete Download" : "Download")),
+                    onTap: () async {
+                      if (isDownloading) return;
+                      
+                      if (isDownloaded) {
+                        Navigator.pop(context);
+                        _confirmDelete(context, song, downloadService);
+                      } else {
+                        Navigator.pop(context);
+                        showMusicToast(context, 'Downloading "${song.name}"...', type: ToastType.info);
+                        await downloadService.downloadSong(song);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Add to Queue"),
+                    onTap: () {
+                      musicService.addToQueue(song);
+                      Navigator.pop(context);
+                      showMusicToast(context, "Added to queue", type: ToastType.success);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Song Details"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showSongDetails(context, song);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) => uiStateService.setModalActive(false));
+  }
+
+  void _confirmDelete(BuildContext context, SongModel song, DownloadService downloadService) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Download'),
+        content: Text('Are you sure you want to delete "${song.name}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final success = await downloadService.deleteSong(song.id);
+              if (context.mounted) {
+                showMusicToast(context, success ? 'Deleted' : 'Failed to delete', type: success ? ToastType.info : ToastType.error);
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
+  }
+
+  void _showSongDetails(BuildContext context, SongModel song) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Song Details"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Title: ${song.name}"),
+            const SizedBox(height: 8),
+            Text("Artist: ${song.artist}"),
+            const SizedBox(height: 8),
+            Text("Album: ${song.album}"),
+            if (song.duration != null) ...[
+              const SizedBox(height: 8),
+              Text("Duration: ${_formatDuration(song.duration)}"),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(String? dur) {
+    if (dur == null || dur.isEmpty) return "";
+    final totalSec = int.tryParse(dur) ?? 0;
+    if (totalSec == 0) return "";
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return "$m:${s.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -294,45 +430,33 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                     final song = visibleSongs[index];
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                      leading: SizedBox(
-                        width: 56,
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 16,
-                              child: Text(
-                                "${index + 1}",
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
-                                song.imageUrl,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => 
-                                    Container(width: 40, height: 40, color: Colors.grey[800]),
-                              ),
-                            ),
-                          ],
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.network(
+                          song.imageUrl,
+                          width: 45,
+                          height: 45,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => 
+                              Container(width: 45, height: 45, color: Colors.grey[800]),
                         ),
                       ),
-                      title: Text(
-                        song.name,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      title: Consumer<MusicService>(
+                        builder: (context, musicService, _) {
+                          final bool isActive = musicService.isActive(song.id);
+                          return Text(
+                            song.name,
+                            style: TextStyle(
+                              color: isActive
+                                  ? const Color(0xFFFF6600)
+                                  : theme.colorScheme.onSurface,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
                       ),
                       subtitle: Text(
                         song.artist,
@@ -346,25 +470,20 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Like indicator
                           Consumer<PlaylistService>(
                             builder: (context, playlistService, _) {
                               if (playlistService.isLiked(song)) {
                                 return const Padding(
-                                  padding: EdgeInsets.only(right: 4.0),
-                                  child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 16),
+                                  padding: EdgeInsets.only(right: 8.0),
+                                  child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 22),
                                 );
                               }
                               return const SizedBox.shrink();
                             },
                           ),
-                          DownloadButton(song: song),
                           IconButton(
-                            icon: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
-                            iconSize: 28,
-                            onPressed: () {
-                              musicService.loadPlaylist(topSongs, index);
-                            },
+                            icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                            onPressed: () => _showMoreMenu(context, song),
                           ),
                         ],
                       ),

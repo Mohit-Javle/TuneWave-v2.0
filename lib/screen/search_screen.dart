@@ -5,12 +5,14 @@ import 'package:clone_mp/models/artist_model.dart';
 import 'package:clone_mp/services/api_service.dart';
 
 import 'package:clone_mp/services/follow_service.dart';
+import 'package:clone_mp/services/download_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
-import 'package:clone_mp/widgets/download_button.dart';
 
 class SearchScreen extends StatefulWidget {
   final Function(SongModel, List<SongModel>, int) onPlaySong;
@@ -139,6 +141,151 @@ class _SearchScreenState extends State<SearchScreen> {
         });
       }
     }
+  }
+
+  void _showMoreMenu(BuildContext context, SongModel song) {
+    final uiStateService = Provider.of<UiStateService>(context, listen: false);
+    final musicService = Provider.of<MusicService>(context, listen: false);
+    
+    // Hide miniplayer when modal opens
+    uiStateService.setModalActive(true);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Consumer<DownloadService>(
+          builder: (context, downloadService, child) {
+            final isDownloaded = downloadService.isSongDownloaded(song.id);
+            final isDownloading = downloadService.isDownloading(song.id);
+            
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        song.imageUrl,
+                        width: 50,
+                        height: 50,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    title: Text(song.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(song.artist),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: Icon(
+                      isDownloaded ? Icons.download_done_rounded : Icons.download_rounded, 
+                      color: isDownloaded ? Colors.green : const Color(0xFFFF6600)
+                    ),
+                    title: Text(isDownloading ? "Downloading..." : (isDownloaded ? "Delete Download" : "Download")),
+                    onTap: () async {
+                      if (isDownloading) return;
+                      
+                      if (isDownloaded) {
+                        Navigator.pop(context);
+                        _confirmDelete(context, song, downloadService);
+                      } else {
+                        Navigator.pop(context);
+                        showMusicToast(context, 'Downloading "${song.name}"...', type: ToastType.info);
+                        await downloadService.downloadSong(song);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.playlist_add_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Add to Queue"),
+                    onTap: () {
+                      musicService.addToQueue(song);
+                      Navigator.pop(context);
+                      showMusicToast(context, "Added to queue", type: ToastType.success);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.info_outline_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Song Details"),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showSongDetails(context, song);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) => uiStateService.setModalActive(false));
+  }
+
+  void _confirmDelete(BuildContext context, SongModel song, DownloadService downloadService) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Download'),
+        content: Text('Are you sure you want to delete "${song.name}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final success = await downloadService.deleteSong(song.id);
+              if (context.mounted) {
+                showMusicToast(
+                   context, 
+                   success ? 'Deleted' : 'Failed to delete', 
+                   type: success ? ToastType.info : ToastType.error,
+                   isBottom: true,
+                );
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSongDetails(BuildContext context, SongModel song) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Song Details"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Title: ${song.name}"),
+            const SizedBox(height: 8),
+            Text("Artist: ${song.artist}"),
+            const SizedBox(height: 8),
+            Text("Album: ${song.album}"),
+            if (song.duration != null) ...[
+              const SizedBox(height: 8),
+              Text("Duration: ${_formatDuration(song.duration)}"),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(String? dur) {
+    if (dur == null || dur.isEmpty) return "";
+    final totalSec = int.tryParse(dur) ?? 0;
+    if (totalSec == 0) return "";
+    final m = totalSec ~/ 60;
+    final s = totalSec % 60;
+    return "$m:${s.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -379,28 +526,17 @@ class _SearchScreenState extends State<SearchScreen> {
                                 if (direction == DismissDirection.startToEnd) {
                                   // Swipe Left-to-Right: Add to Queue
                                   context.read<MusicService>().addToQueue(song);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('${song.name} added to queue'),
-                                      backgroundColor: const Color(0xFFFF6600),
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
+                                  showMusicToast(context, '${song.name} added to queue', type: ToastType.success);
                                 } else if (direction == DismissDirection.endToStart) {
                                   // Swipe Right-to-Left: Toggle Like
                                   await context.read<PlaylistService>().toggleLike(song);
                                   if (!context.mounted) return false;
                                   final isLiked = context.read<PlaylistService>().isLiked(song);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        isLiked 
-                                          ? 'Added to Liked Songs' 
-                                          : 'Removed from Liked Songs'
-                                      ),
-                                      backgroundColor: const Color(0xFFFF6600),
-                                      duration: const Duration(seconds: 1),
-                                    ),
+                                  showMusicToast(
+                                    context, 
+                                    isLiked ? 'Added to Liked Songs' : 'Removed from Liked Songs',
+                                    type: isLiked ? ToastType.success : ToastType.info,
+                                    isBottom: !isLiked,
                                   );
                                 }
                                 return false; // Always snap back
@@ -431,55 +567,64 @@ class _SearchScreenState extends State<SearchScreen> {
                                   ],
                                 ),
                               ),
-                              child: ListTile(
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    song.imageUrl,
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Container(color: Colors.grey, width: 50, height: 50),
+                                child: ListTile(
+                                  leading: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.network(
+                                      song.imageUrl,
+                                      width: 50,
+                                      height: 50,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          Container(color: Colors.grey, width: 50, height: 50),
+                                    ),
                                   ),
-                                ),
-                                title: Text(
-                                  song.name,
-                                  style: TextStyle(color: theme.colorScheme.onSurface),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Text(
-                                  song.artist,
-                                  style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    DownloadButton(song: song),
-                                    Consumer<PlaylistService>(
-                                       builder: (context, playlistService, _) {
+                                  title: Consumer<MusicService>(
+                                    builder: (context, musicService, _) {
+                                      final bool isActive = musicService.isActive(song.id);
+                                      return Text(
+                                        song.name,
+                                        style: TextStyle(
+                                          color: isActive
+                                              ? const Color(0xFFFF6600)
+                                              : theme.colorScheme.onSurface,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      );
+                                    },
+                                  ),
+                                  subtitle: Text(
+                                    song.artist,
+                                    style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Consumer<PlaylistService>(
+                                        builder: (context, playlistService, _) {
                                           if (playlistService.isLiked(song)) {
-                                             return const Padding(
-                                                padding: EdgeInsets.only(right: 8.0),
-                                                child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 16),
-                                             );
+                                            return const Padding(
+                                              padding: EdgeInsets.only(right: 8.0),
+                                              child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 22),
+                                            );
                                           }
                                           return const SizedBox.shrink();
-                                       },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
-                                      onPressed: () {
-                                        final index = _songResults.indexOf(song);
-                                        widget.onPlaySong(song, _songResults, index);
-                                      },
-                                    ),
-                                  ],
+                                        },
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                                        onPressed: () => _showMoreMenu(context, song),
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    final index = _songResults.indexOf(song);
+                                    widget.onPlaySong(song, _songResults, index);
+                                  },
                                 ),
-                              ),
                             );
                           },
                           childCount: _songResults.length,

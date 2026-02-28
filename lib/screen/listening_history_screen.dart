@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/music_service.dart';
+import '../services/auth_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 class ListeningHistoryScreen extends StatelessWidget {
@@ -20,96 +22,127 @@ class ListeningHistoryScreen extends StatelessWidget {
       ),
       body: Consumer<MusicService>(
         builder: (context, musicService, child) {
-          final history = musicService.listeningHistory;
+          final email = AuthService.instance.currentUser?.email;
 
-          if (history.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.history, size: 80, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
-                  const SizedBox(height: 16),
-                  Text(
-                    "No listening history yet",
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            );
+          if (email == null) {
+            return _buildEmptyState(theme, "Please log in to see history");
           }
 
-          final groupedHistory = _groupHistoryByDate(history);
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(email)
+                .collection('listeningHistory')
+                .orderBy('playedAt', descending: true)
+                .limit(100)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFFFF6600)));
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: groupedHistory.keys.length,
-            itemBuilder: (context, index) {
-              final dateKey = groupedHistory.keys.elementAt(index);
-              final songs = groupedHistory[dateKey]!;
+              if (snapshot.hasError) {
+                return _buildEmptyState(theme, "Error loading history");
+              }
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      dateKey,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  ...songs.map((song) => ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        song.imageUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 50,
-                          height: 50,
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.music_note, color: Colors.white54),
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return _buildEmptyState(theme, "No listening history yet");
+              }
+
+              final history = snapshot.data!.docs
+                  .map((doc) => SongModel.fromJson(doc.data() as Map<String, dynamic>))
+                  .toList();
+
+              final groupedHistory = _groupHistoryByDate(history);
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: groupedHistory.keys.length,
+                itemBuilder: (context, index) {
+                  final dateKey = groupedHistory.keys.elementAt(index);
+                  final songs = groupedHistory[dateKey]!;
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: Text(
+                          dateKey,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ),
-                    ),
-                    title: Text(
-                      song.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
-                    onTap: () {
-                      // Find the original index of this song in the full history list
-                      // or just clear playlist and play this one for simplicity in history context
-                      musicService.loadPlaylist([song], 0);
-                    },
-                  )),
-                ],
+                      ...songs.map((song) => ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            song.imageUrl,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: 50,
+                              height: 50,
+                              color: Colors.grey[800],
+                              child: const Icon(Icons.music_note, color: Colors.white54),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          song.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: musicService.isActive(song.id)
+                                ? const Color(0xFFFF6600)
+                                : theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        subtitle: Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
+                        onTap: () {
+                          musicService.loadPlaylist([song], 0);
+                        },
+                      )),
+                    ],
+                  );
+                },
               );
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(ThemeData theme, String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 80, color: theme.colorScheme.onSurface.withValues(alpha: 0.3)),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              fontSize: 16,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -123,7 +156,8 @@ class ListeningHistoryScreen extends StatelessWidget {
     for (var song in history) {
       if (song.playedAt == null) continue; // Skip legacy data without timestamp
 
-      final date = song.playedAt!;
+      // Convert from UTC if your Firestore saves in UTC, or just use as-is
+      final date = song.playedAt!.toLocal(); 
       final dateOnly = DateTime(date.year, date.month, date.day);
       
       String header;
