@@ -177,6 +177,7 @@ class DownloadsPage extends StatelessWidget {
               // Downloaded songs list
               Expanded(
                 child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 100),
                   itemCount: downloadService.downloadedSongs.length,
                   itemBuilder: (context, index) {
                     final song = downloadService.downloadedSongs[index];

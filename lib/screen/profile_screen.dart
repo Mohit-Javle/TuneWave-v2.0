@@ -12,6 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/screen/listening_history_screen.dart';
+import 'package:clone_mp/screen/music_dna_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -409,6 +410,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ListeningHistoryScreen()),
+                      );
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.fingerprint, color: primaryOrange),
+                    title: Text(
+                      'My Music DNA',
+                      style: TextStyle(color: textDark),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16,
+                      color: textLight,
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => MusicDNAScreen()),
                       );
                     },
                   ),

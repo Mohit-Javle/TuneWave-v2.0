@@ -24,4 +24,22 @@ class ArtistModel {
       imageUrl: getImageUrl(json['image']),
     );
   }
+
+  factory ArtistModel.fromJson(Map<String, dynamic> json) {
+    return ArtistModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      type: json['type'] ?? 'artist',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'imageUrl': imageUrl,
+      'type': type,
+    };
+  }
 }

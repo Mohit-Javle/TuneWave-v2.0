@@ -36,60 +36,56 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
     try {
       final api = ApiService();
       final artistId = widget.artist['id'];
+      final artistName = widget.artist['name'] ?? 'Unknown Artist';
       
-      if (artistId != null && artistId.isNotEmpty) {
+      // If NOT a placeholder ID, try official details API
+      if (artistId != null && artistId.isNotEmpty && !artistId.startsWith('p_')) {
         final details = await api.getArtistDetails(artistId);
         
         List<AlbumModel> fetchedAlbums = details['albums'] ?? [];
         List<SongModel> fetchedSongs = details['topSongs'] ?? [];
 
-        if (fetchedAlbums.isEmpty) {
-           fetchedAlbums = await api.searchAlbums(widget.artist['name']!);
-        }
-        
-        final artistName = widget.artist['name']!.toLowerCase().trim();
-        
-        fetchedAlbums = fetchedAlbums.where((album) {
-           final albumArtists = album.artist.toLowerCase();
-           return albumArtists.startsWith(artistName); 
-        }).toList();
+        // If details API returned actual content, use it
+        if (fetchedSongs.isNotEmpty || fetchedAlbums.isNotEmpty) {
+          if (fetchedAlbums.isEmpty) {
+             fetchedAlbums = await api.searchAlbums(artistName);
+          }
+          
+          final normalizedName = artistName.toLowerCase().trim();
+          fetchedAlbums = fetchedAlbums.where((album) {
+             final albumArtists = album.artist.toLowerCase();
+             return albumArtists.contains(normalizedName); 
+          }).toList();
 
-        fetchedAlbums.sort((a, b) {
-           int yearA = int.tryParse(a.year) ?? 0;
-           int yearB = int.tryParse(b.year) ?? 0;
-           return yearB.compareTo(yearA);
-        });
+          if (mounted) {
+            setState(() {
+              topSongs = fetchedSongs;
+              albums = fetchedAlbums;
+              isLoading = false;
+            });
+            return; // Success, exit
+          }
+        }
+      }
 
-        if (mounted) {
-          setState(() {
-            topSongs = fetchedSongs;
-            albums = fetchedAlbums;
-            isLoading = false;
-          });
-        }
-      } else {
-        final songs = await api.searchSongs(widget.artist['name']!);
-        var searchedAlbums = await api.searchAlbums(widget.artist['name']!);
-        
-        final artistName = widget.artist['name']!.toLowerCase().trim();
-        searchedAlbums = searchedAlbums.where((album) {
-           final albumArtists = album.artist.toLowerCase();
-           return albumArtists.startsWith(artistName);
-        }).toList();
-        
-        searchedAlbums.sort((a, b) {
-           int yearA = int.tryParse(a.year) ?? 0;
-           int yearB = int.tryParse(b.year) ?? 0;
-           return yearB.compareTo(yearA);
+      // FALLBACK: If placeholder ID or details API failed, use robust search
+      final songs = await api.searchSongs(artistName);
+      var searchedAlbums = await api.searchAlbums(artistName);
+      
+      // Relaxed filtering: Use search results directly for songs to guarantee content
+      // only filter albums to keep them somewhat relevant
+      final normalizedName = artistName.toLowerCase().trim();
+      final filteredAlbums = searchedAlbums.where((album) {
+         final albumArtists = album.artist.toLowerCase();
+         return albumArtists.contains(normalizedName);
+      }).toList();
+      
+      if (mounted) {
+        setState(() {
+          topSongs = songs.take(25).toList(); // More songs for better profile
+          albums = filteredAlbums.isNotEmpty ? filteredAlbums : searchedAlbums;
+          isLoading = false;
         });
-        
-        if (mounted) {
-          setState(() {
-            topSongs = songs.take(10).toList();
-            albums = searchedAlbums;
-            isLoading = false;
-          });
-        }
       }
     } catch (e) {
       debugPrint("Error loading artist details: $e");
@@ -324,7 +320,11 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             if (artistId.isNotEmpty) {
-                              followService.toggleFollow(artistId);
+                              followService.toggleFollow(
+                                artistId,
+                                name: widget.artist['name'],
+                                image: widget.artist['image'],
+                              );
                             }
                           },
                           icon: Icon(

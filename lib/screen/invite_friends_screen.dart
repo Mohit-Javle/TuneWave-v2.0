@@ -1,13 +1,74 @@
 // lib/screen/invite_friends_screen.dart
 // ignore_for_file: deprecated_member_use
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class InviteFriendsScreen extends StatelessWidget {
   const InviteFriendsScreen({super.key});
 
   static const Color primaryOrange = Color(0xFFFF6600);
+
+  // Native channel for APK sharing
+  static const _channel = MethodChannel('com.example.tunewave/apk_share');
+
+  // Sharing method
+  Future<void> _shareApp(BuildContext context) async {
+    try {
+      // Show loading toast
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Preparing APK for sharing... This might take a moment."),
+          duration: Duration(seconds: 2),
+          backgroundColor: primaryOrange,
+        ),
+      );
+
+      final String? originalApkPath = await _channel.invokeMethod<String>('getApkPath');
+      
+      if (originalApkPath != null) {
+        final File originalFile = File(originalApkPath);
+        
+        // Copy to a temporary location with a clean name for better app compatibility (like WhatsApp)
+        final tempDir = await getTemporaryDirectory();
+        final String fileName = "TuneWave.apk";
+        final File tempFile = File("${tempDir.path}/$fileName");
+        
+        // Only copy if it doesn't exist or if you want to ensure the latest
+        await originalFile.copy(tempFile.path);
+
+        // Share the copied APK file
+        await Share.shareXFiles(
+          [XFile(tempFile.path, name: fileName, mimeType: 'application/vnd.android.package-archive')],
+          text: "Hey! Join me on TuneWave. 🎵 Install this app and join the vibe!",
+          subject: "TuneWave App Sharing",
+        );
+      } else {
+        throw Exception("Could not find the app's APK path.");
+      }
+    } catch (e) {
+      debugPrint("Error sharing APK: $e");
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Sharing failed: ${e.toString().split(':').last.trim()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      // Fallback: Share link if file sharing fails
+      const String downloadUrl = "https://tunewave.app/download"; 
+      await Share.share(
+        "Hey! Join me on TuneWave. 🎵 Download the app here: $downloadUrl",
+        subject: "Join me on TuneWave!",
+      );
+    }
+  }
 
   // Dummy data for suggested friends
   final List<Map<String, String>> suggestedFriends = const [
@@ -91,6 +152,29 @@ class InviteFriendsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _shareApp(context),
+                          icon: const Icon(Icons.share_rounded, size: 20),
+                          label: const Text(
+                            'Share App Link',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -105,31 +189,26 @@ class InviteFriendsScreen extends StatelessWidget {
                         Expanded(
                           child: Text(
                             inviteLink,
-                            style: TextStyle(color: textLight),
+                            style: TextStyle(color: textLight, fontSize: 13),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        ElevatedButton.icon(
+                        TextButton.icon(
                           onPressed: () {
                             Clipboard.setData(
                               const ClipboardData(text: inviteLink),
                             );
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Invite link copied!'),
+                                content: Text('Link copied!'),
                                 backgroundColor: primaryOrange,
                               ),
                             );
                           },
-                          icon: const Icon(Icons.copy, size: 16),
-                          label: const Text('Copy'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: primaryOrange,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                          icon: const Icon(Icons.copy, size: 14),
+                          label: const Text('Copy', style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: primaryOrange,
                           ),
                         ),
                       ],

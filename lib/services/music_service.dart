@@ -31,6 +31,22 @@ class MusicService with ChangeNotifier {
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier(null);
   final ValueNotifier<Color?> currentAccentColorNotifier = ValueNotifier(null);
 
+  // Music DNA Tracking
+  Map<String, int> _playCounts = {};
+  Duration _totalListeningTime = Duration.zero;
+  Map<String, Map<String, dynamic>> _songMetadataCache = {};
+  
+  Map<String, int> get playCounts => _playCounts;
+  
+  Duration get totalListeningTime {
+    if (_lastPlayStartTime != null && isPlayingNotifier.value) {
+      return _totalListeningTime + DateTime.now().difference(_lastPlayStartTime!);
+    }
+    return _totalListeningTime;
+  }
+  
+  Map<String, Map<String, dynamic>> get songMetadataCache => _songMetadataCache;
+
   bool isActive(String songId) {
     return currentSongNotifier.value?.id == songId;
   }
@@ -46,8 +62,15 @@ class MusicService with ChangeNotifier {
   void init() {
     // Listen to AudioHandler state
     _audioHandler.playbackState.listen((playbackState) {
+      bool wasPlaying = isPlayingNotifier.value;
       isPlayingNotifier.value = playbackState.playing;
       currentDurationNotifier.value = playbackState.position;
+      
+      if (playbackState.playing && !wasPlaying) {
+        _startListeningTimeTracking();
+      } else if (!playbackState.playing && wasPlaying) {
+        _stopListeningTimeTracking();
+      }
       // You might need a periodic timer or a ticker to update position smoothly in UI
       // but for now relying on state updates. 
       // Note: playbackState.position is only updated on state changes or specific events, 
@@ -68,7 +91,9 @@ class MusicService with ChangeNotifier {
               id: mediaItem.id,
               name: mediaItem.title,
               artist: mediaItem.artist ?? '',
+              artistId: mediaItem.extras?['artistId'],
               album: mediaItem.album ?? '',
+              albumId: mediaItem.extras?['albumId'],
               imageUrl: mediaItem.artUri?.toString() ?? '',
               downloadUrl: mediaItem.extras?['url'] ?? '',
               hasLyrics: false, // Default
@@ -86,6 +111,45 @@ class MusicService with ChangeNotifier {
     });
 
     _loadHistory();
+    _loadStats();
+  }
+
+  DateTime? _lastPlayStartTime;
+
+  void _startListeningTimeTracking() {
+    _lastPlayStartTime ??= DateTime.now();
+  }
+
+  void _stopListeningTimeTracking() {
+    if (_lastPlayStartTime != null) {
+      final sessionTime = DateTime.now().difference(_lastPlayStartTime!);
+      _totalListeningTime += sessionTime;
+      _lastPlayStartTime = null;
+      _saveStats();
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    final countsJson = prefs.getString('play_counts') ?? '{}';
+    _playCounts = Map<String, int>.from(json.decode(countsJson));
+    final totalSeconds = prefs.getInt('total_listening_seconds') ?? 0;
+    _totalListeningTime = Duration(seconds: totalSeconds);
+    
+    final cacheJson = prefs.getString('song_metadata_cache') ?? '{}';
+    _songMetadataCache = Map<String, Map<String, dynamic>>.from(
+      json.decode(cacheJson).map((key, value) => MapEntry(key, Map<String, dynamic>.from(value)))
+    );
+    
+    notifyListeners();
+  }
+
+  Future<void> _saveStats() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('play_counts', json.encode(_playCounts));
+    await prefs.setInt('total_listening_seconds', _totalListeningTime.inSeconds);
+    await prefs.setString('song_metadata_cache', json.encode(_songMetadataCache));
   }
 
   Future<void> _updateAccentColor(String? imageUrl) async {
@@ -153,7 +217,9 @@ class MusicService with ChangeNotifier {
       id: song.id,
       name: song.name,
       artist: song.artist,
+      artistId: song.artistId,
       album: song.album,
+      albumId: song.albumId,
       imageUrl: song.imageUrl,
       downloadUrl: song.downloadUrl,
       hasLyrics: song.hasLyrics,
@@ -165,6 +231,15 @@ class MusicService with ChangeNotifier {
     if (_listeningHistory.length > 50) {
       _listeningHistory = _listeningHistory.sublist(0, 50);
     }
+    
+    // Update play counts
+    _playCounts[song.id] = (_playCounts[song.id] ?? 0) + 1;
+    
+    // Cache metadata
+    _songMetadataCache[song.id] = song.toJson();
+    
+    _saveStats();
+    
     notifyListeners();
 
     // Non-blocking fire-and-forget write to Firestore
@@ -205,6 +280,7 @@ class MusicService with ChangeNotifier {
 
   Future<void> pause() async {
     await _audioHandler.pause();
+    _stopListeningTimeTracking();
   }
 
   Future<void> seek(Duration position) async {
@@ -348,7 +424,11 @@ class MusicService with ChangeNotifier {
       artist: song.artist,
       album: song.album,
       artUri: Uri.parse(song.imageUrl),
-      extras: {'url': url},
+      extras: {
+        'url': url,
+        'artistId': song.artistId,
+        'albumId': song.albumId,
+      },
     );
   }
 }

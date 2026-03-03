@@ -9,6 +9,8 @@ import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:clone_mp/services/migration_service.dart';
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -113,12 +115,27 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 Image.asset('assets/images/logo.png', width: 120, height: 120),
                 const SizedBox(height: 20),
-                const Text(
-                  'TuneWave',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                DefaultTextStyle(
+                  style: GoogleFonts.pacifico(
+                    fontSize: 40,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black87,
+                    shadows: [
+                      const Shadow(
+                        blurRadius: 4.0,
+                        color: Colors.black12,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: AnimatedTextKit(
+                    animatedTexts: [
+                      TyperAnimatedText(
+                        'TuneWave',
+                        speed: const Duration(milliseconds: 150),
+                      ),
+                    ],
+                    isRepeatingAnimation: false,
                   ),
                 ),
               ],

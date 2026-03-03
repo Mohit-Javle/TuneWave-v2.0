@@ -125,6 +125,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 _buildEmptyState(theme)
               else
                 _buildSongList(playlistSongs, musicService),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 100),
+              ),
             ],
           ),
         );

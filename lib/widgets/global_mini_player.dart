@@ -64,8 +64,7 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                 final showMiniPlayer = currentSong != null && 
                                        !isOnPlayerScreen && 
                                        !_shouldHideMiniPlayer(currentRoute) &&
-                                       uiStateService.isMiniPlayerVisible &&
-                                       !uiStateService.isModalActive;
+                                       uiStateService.isMiniPlayerVisible;
                 
                 // Determine bottom padding based on current route
                 // Also add keyboard height so it sits above keyboard

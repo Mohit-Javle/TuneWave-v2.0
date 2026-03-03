@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:clone_mp/widgets/music_toast.dart';
 
 class CreatePlaylistSheet extends StatefulWidget {
   const CreatePlaylistSheet({super.key});
 
   static void show(BuildContext context) {
+    final uiService = Provider.of<UiStateService>(context, listen: false);
+    uiService.setModalActive(true);
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -17,7 +21,7 @@ class CreatePlaylistSheet extends StatefulWidget {
         ),
         child: const CreatePlaylistSheet(),
       ),
-    );
+    ).then((_) => uiService.setModalActive(false));
   }
 
   @override
