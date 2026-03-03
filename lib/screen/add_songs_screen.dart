@@ -154,6 +154,7 @@ class _AddSongsScreenState extends State<AddSongsScreen> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF6600)))
                 : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 100),
                     itemCount: _searchResults.length,
                     itemBuilder: (context, index) {
                       final song = _searchResults[index];

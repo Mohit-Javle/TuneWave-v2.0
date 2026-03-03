@@ -27,4 +27,24 @@ class AlbumModel {
       year: json['year'] ?? json['more_info']?['year'] ?? '',
     );
   }
+
+  factory AlbumModel.fromJson(Map<String, dynamic> json) {
+    return AlbumModel(
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      artist: json['artist'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      year: json['year'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'artist': artist,
+      'imageUrl': imageUrl,
+      'year': year,
+    };
+  }
 }

@@ -36,39 +36,14 @@ class _HomeScreenState extends State<HomeScreen> {
   String selectedFilter = "All";
   bool isLoading = true;
 
+  List<Map<String, dynamic>> dynamicFeaturedPlaylists = [];
+  Map<String, List<SongModel>> playlistSongsData = {};
+
   List<SongModel> recentlyPlayed = [];
   List<SongModel> topCharts = [];
-
-  // Static playlists for UI demo (can be APIified later)
-  final List<Map<String, String>> featuredPlaylists = [
-    {
-      "title": "Today's Top Hits",
-      "subtitle": "The biggest songs right now",
-      "image": "https://i.ibb.co/B2kSS9B1/download-4.jpg",
-      "songCount": "50",
-    },
-    {
-      "title": "Sem Bihari",
-      "subtitle": "New music from hip-hop",
-      "image":
-          "https://i.ibb.co/TDx4fd0B/Whats-App-Image-2025-09-02-at-10-25-07-PM.jpg",
-      "songCount": "65",
-    },
-  ];
+  List<Map<String, String>> dynamicPopularArtists = [];
 
   bool showAllTopCharts = false;
-
-  final List<Map<String, String>> popularArtists = [
-    {"name": "Seedhe Maut", "image": "https://tse2.mm.bing.net/th?q=Seedhe+Maut+Rapper&w=500&h=500&c=7"},
-    {"name": "Arijit Singh", "image": "https://tse2.mm.bing.net/th?q=Arijit+Singh+Singer&w=500&h=500&c=7"},
-    {"name": "Drake", "image": "https://tse2.mm.bing.net/th?q=Drake+Rapper&w=500&h=500&c=7"},
-    {"name": "Dua Lipa", "image": "https://tse2.mm.bing.net/th?q=Dua+Lipa&w=500&h=500&c=7"},
-    {"name": "Billie Eilish", "image": "https://tse2.mm.bing.net/th?q=Billie+Eilish&w=500&h=500&c=7"},
-    {"name": "Raftaar", "image": "https://tse2.mm.bing.net/th?q=Raftaar+Rapper&w=500&h=500&c=7"},
-    {"name": "Karma", "image": "https://tse2.mm.bing.net/th?q=Karma+Rapper&w=500&h=500&c=7"},
-    {"name": "Afkap", "image": "https://tse2.mm.bing.net/th?q=Afkap+Rapper&w=500&h=500&c=7"},
-    {"name": "OG Lucifer", "image": "https://tse2.mm.bing.net/th?q=OG+Lucifer+Rapper&w=500&h=500&c=7"},
-  ];
 
   final List<String> genres = [
     "All",
@@ -82,71 +57,243 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // Use a post-frame callback to trigger load if needing context
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      
+      // Listen for follow changes to refresh home feed
+      final followService = Provider.of<FollowService>(context, listen: false);
+      followService.addListener(_onFollowChanged);
+    });
+  }
+
+  void _onFollowChanged() {
+    if (mounted) {
+      _loadData();
+    }
+  }
+
+  @override
+  void dispose() {
+    // Safely remove listener if possible, though provider usually handles this
+    // but since we added it manually to the service instance:
+    try {
+      final followService = Provider.of<FollowService>(context, listen: false);
+      followService.removeListener(_onFollowChanged);
+    } catch (_) {}
+    super.dispose();
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
     setState(() => isLoading = true);
     try {
       final api = ApiService();
       final currentUser = AuthService.instance.currentUser;
       
-      String recentQuery = "new hindi songs";
-      String chartsQuery = "Desi Hip Hop Hits";
+      List<SongModel> allRecentSongs = [];
+      List<SongModel> allChartSongs = [];
+      List<Map<String, String>> artistsList = [];
+      List<Map<String, dynamic>> newPlaylists = [];
+      final Map<String, List<SongModel>> newPlaylistData = {};
 
       if (currentUser != null) {
         final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
         final followService = Provider.of<FollowService>(context, listen: false);
         
-        final prefs = await personalizationService.getPersonalizationData(currentUser.email);
-        final followedArtists = followService.followedArtistIds;
+        final personalData = await personalizationService.getPersonalizationData(currentUser.email);
+        final followedArtists = followService.followedArtistsList;
 
         List<String> userGenres = [];
-        List<String> userArtists = [];
+        List<String> userArtistNames = [];
 
-        if (prefs != null) {
-          userGenres = List<String>.from(prefs['genres'] ?? []);
-          userArtists = List<String>.from(prefs['artists'] ?? []);
+        if (personalData != null) {
+          userGenres = List<String>.from(personalData['genres'] ?? []);
+          userArtistNames = List<String>.from(personalData['artists'] ?? []);
         }
 
-        // Combine onboarded artists with followed artists for a richer pool
-        final allArtists = <String>{...userArtists, ...followedArtists}.toList();
-
-        // Use today's date as a seed to ensure daily freshness
-        final now = DateTime.now();
-        final int todaySeed = now.year * 1000 + now.month * 100 + now.day;
-        final random = Random(todaySeed);
-
-        if (allArtists.isNotEmpty) {
-          // Pick a random artist for recently played/trending
-          recentQuery = allArtists[random.nextInt(allArtists.length)];
-        } else if (userGenres.isNotEmpty) {
-          recentQuery = userGenres[random.nextInt(userGenres.length)];
+        // Build dynamic popular artists list
+        // Priority 1: Followed Artists
+        // Priority 2: Personalized Artists
+        artistsList = List<Map<String, String>>.from(followedArtists);
+        
+        // --- LAZY METADATA DISCOVERY ---
+        // Identify artists with missing info and repair in background
+        for (var artist in artistsList) {
+          final id = artist['id'] ?? '';
+          final name = artist['name'] ?? '';
+          if (id.isNotEmpty && (name == 'Unknown' || name == 'Artist' || name.isEmpty)) {
+            // Fetch missing info in background (don't await to keep home screen fast)
+            api.getArtistDetails(id).then((details) {
+              if (details.isNotEmpty && details['name'] != null) {
+                followService.updateArtistMetadata(
+                  id, 
+                  details['name'], 
+                  details['image'] ?? ''
+                );
+              }
+            }).catchError((e) {
+              debugPrint("Discovery failed for $id: $e");
+              return null;
+            });
+          }
         }
 
+        // Add personalized artists if not already in followed list
+        for (var name in userArtistNames) {
+          if (!artistsList.any((a) => a['name']?.toLowerCase() == name.toLowerCase())) {
+            artistsList.add({
+              'id': 'p_${name.hashCode}',
+              'name': name,
+              'image': 'https://tse2.mm.bing.net/th?q=$name+Artist&w=500&h=500&c=7'
+            });
+          }
+        }
+
+        // --- FETCHING LOGIC ---
+        // Fetch top songs for a small random subset (2) to minimize latency
+        final fetchPool = List<Map<String, String>>.from(artistsList)..shuffle();
+        final selectedPool = fetchPool.take(2).toList();
+        final List<Future<List<SongModel>>> songFutures = [];
+        
+        for (var artist in selectedPool) {
+          songFutures.add(api.searchSongs("${artist['name']!} hits"));
+        }
+        
+        // Add genre searches if pool is small
+        if (selectedPool.length < 2 && userGenres.isNotEmpty) {
+           for (var genre in userGenres.take(2 - selectedPool.length)) {
+             songFutures.add(api.searchSongs("$genre hits"));
+           }
+        }
+
+        final allResults = await Future.wait(songFutures);
+        // Collect & Filter songs per source to fill the 10 slots with quality
+        final List<String> blacklist = ["dialogue", "mashup", "remix", "slowed", "reverb", "skit", "speech", "loop", "reaction"];
+        
+        for (int i = 0; i < allResults.length; i++) {
+          final results = allResults[i];
+          final sourceArtistName = i < selectedPool.length ? selectedPool[i]['name'] : null;
+          
+          final filtered = results.where((song) {
+            final titleLower = song.name.toLowerCase();
+            final artistLower = song.artist.toLowerCase();
+            
+            // 1. Keyword blacklist (filter out cringe content)
+            if (blacklist.any((word) => titleLower.contains(word))) return false;
+            
+            // 2. Artist Integrity (ensure the followed artist is actually on the track)
+            if (sourceArtistName != null) {
+               final sourceLower = sourceArtistName.toLowerCase();
+               // Song's artist metadata must contain the searched artist's name
+               if (!artistLower.contains(sourceLower)) return false;
+            }
+            
+            return true;
+          }).toList();
+          
+          allRecentSongs.addAll(filtered.take(8));
+        }
+
+        allRecentSongs.shuffle();
+        allRecentSongs = allRecentSongs.take(10).toList();
+
+        // Optimized Top Charts query
         if (userGenres.isNotEmpty) {
-          // Pick a random genre for top charts
-          chartsQuery = "${userGenres[random.nextInt(userGenres.length)]} hits";
-        } else if (allArtists.isNotEmpty) {
-          chartsQuery = "${allArtists[random.nextInt(allArtists.length)]} hits";
+          final randomGenre = userGenres[Random().nextInt(userGenres.length)];
+          allChartSongs = await api.searchSongs("$randomGenre Weekly Top");
+          if (allChartSongs.length < 5) {
+            final backup = await api.searchSongs("$randomGenre trending");
+            allChartSongs.addAll(backup);
+          }
         }
-      }
+        
+        // Solid fallback for charts
+        if (allChartSongs.isEmpty) {
+          allChartSongs = await api.searchSongs("Top Hindi Songs 2024");
+        }
+        // --- DYNAMIC FEATURED PLAYLISTS ---
+        final playlistService = Provider.of<PlaylistService>(context, listen: false);
 
-      final recent = await api.searchSongs(recentQuery);
-      final charts = await api.searchSongs(chartsQuery);
+        // 1. Your Daily Mix (Liked Songs + Followed Artist Songs)
+        final dailyMixSongs = [...playlistService.likedSongs, ...allRecentSongs];
+        dailyMixSongs.shuffle();
+        if (dailyMixSongs.isNotEmpty) {
+          final id = 'daily_mix';
+          newPlaylists.add({
+            'id': id,
+            'title': 'Your Daily Mix',
+            'subtitle': 'Made just for you',
+            'image': 'https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=600&auto=format&fit=crop',
+            'songCount': dailyMixSongs.length.toString(),
+          });
+          newPlaylistData[id] = dailyMixSongs;
+        }
+
+        // 2. Genre Station (Based on user selection)
+        if (userGenres.isNotEmpty) {
+          final topGenre = userGenres[0];
+          final genreSongs = await api.searchSongs('$topGenre Hits');
+          if (genreSongs.isNotEmpty) {
+            final id = 'genre_station';
+            newPlaylists.add({
+              'id': id,
+              'title': '$topGenre Station',
+              'subtitle': 'The best of $topGenre',
+              'image': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
+              'songCount': genreSongs.length.toString(),
+            });
+            newPlaylistData[id] = genreSongs;
+          }
+        }
+
+        // 3. Indian Hip Hop (Custom requested)
+        final hipHopSongs = await api.searchSongs('Indian Hip Hop');
+        if (hipHopSongs.isNotEmpty) {
+          final id = 'indian_hip_hop';
+          newPlaylists.add({
+            'id': id,
+            'title': 'Indian Hip Hop',
+            'subtitle': 'Street fire from India',
+            'image': 'https://images.unsplash.com/photo-1546707012-c24c2809da51?q=80&w=600&auto=format&fit=crop',
+            'songCount': hipHopSongs.length.toString(),
+          });
+          newPlaylistData[id] = hipHopSongs;
+        }
+
+        if (mounted) {
+           // These will be picked up by the final setState
+        }
+      } else {
+        // Guest fallback
+        allRecentSongs = await api.searchSongs("Trending Songs");
+        allChartSongs = await api.searchSongs("Top Hits 2024");
+        artistsList = [
+          {"name": "Seedhe Maut", "image": "https://tse2.mm.bing.net/th?q=Seedhe+Maut+Rapper&w=500&h=500&c=7"},
+          {"name": "Arijit Singh", "image": "https://tse2.mm.bing.net/th?q=Arijit+Singh+Singer&w=500&h=500&c=7"},
+          {"name": "Drake", "image": "https://tse2.mm.bing.net/th?q=Drake+Rapper&w=500&h=500&c=7"},
+        ];
+        
+        newPlaylists = [
+           {
+            'id': 'trending',
+            'title': 'Trending Now',
+            'subtitle': 'Global hits',
+            'image': 'https://images.unsplash.com/photo-1514525253361-bee8a187449a?q=80&w=600&auto=format&fit=crop',
+            'songCount': allRecentSongs.length.toString(),
+          }
+        ];
+        newPlaylistData['trending'] = allRecentSongs;
+      }
 
       if (mounted) {
         setState(() {
-          // Shuffle results slightly using the daily seed to feel less static 
-          // while keeping it consistent throughout the day
-          final now = DateTime.now();
-          final int todaySeed = now.year * 1000 + now.month * 100 + now.day;
-          final currentRandom = Random(todaySeed);
-          recent.shuffle(currentRandom);
-          charts.shuffle(currentRandom);
-          
-          recentlyPlayed = recent;
-          topCharts = charts;
+          allRecentSongs.shuffle();
+          recentlyPlayed = allRecentSongs;
+          topCharts = allChartSongs;
+          dynamicPopularArtists = artistsList;
+          dynamicFeaturedPlaylists = newPlaylists;
+          playlistSongsData = newPlaylistData;
           isLoading = false;
         });
       }
@@ -428,8 +575,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
+          child: Consumer<FollowService>(
+            builder: (context, followService, child) {
+              // Check if we need to reload data because followed counts changed
+              // Simple check: compare current dynamicPopularArtists with followedArtistsList
+              // In production we would use internal versioning or comparison
+              return CustomScrollView(
+                slivers: [
               SliverAppBar(
                 backgroundColor: theme.colorScheme.surface,
                 surfaceTintColor: theme.colorScheme.surface,
@@ -527,7 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
 
               SliverToBoxAdapter(
-                child: _buildSectionHeader("Recently Added / Trending"),
+                child: _buildSectionHeader("Recommended For You"),
               ),
               SliverToBoxAdapter(
                 child: SizedBox(
@@ -577,7 +729,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       childCount: showAllTopCharts
                           ? topCharts.length
-                          : (topCharts.length > 5 ? 5 : topCharts.length),
+                          : (topCharts.length > 8 ? 8 : topCharts.length),
                       ),
                     ),
 
@@ -586,14 +738,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildSectionHeader("Your Favorite Artists"),
               ),
               SliverToBoxAdapter(
-                child: SizedBox(
+                child: dynamicPopularArtists.isEmpty 
+                  ? Container(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                        child: Text(
+                          "Follow your favorite artists to see them here!",
+                          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    )
+                  : SizedBox(
                   height: 140, // Height for avatar + text
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: popularArtists.length,
+                    itemCount: dynamicPopularArtists.length,
                     itemBuilder: (context, index) {
-                      final artist = popularArtists[index];
+                      final artist = dynamicPopularArtists[index];
                       return GestureDetector(
                         onTap: () {
                           Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
@@ -606,12 +768,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 40,
-                                backgroundImage: NetworkImage(artist["image"]!),
+                                backgroundImage: NetworkImage(artist["image"] ?? ''),
                                 backgroundColor: Colors.grey[800],
+                                onBackgroundImageError: (e, s) =>
+                                    const Icon(Icons.person, color: Colors.white),
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                artist["name"]!,
+                                artist["name"] ?? 'Unknown',
                                 style: TextStyle(
                                   color: theme.colorScheme.onSurface,
                                   fontSize: 13,
@@ -635,13 +799,13 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SliverToBoxAdapter(
                 child: SizedBox(
-                  height: 200,
+                   height: 200,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: featuredPlaylists.length,
+                    itemCount: dynamicFeaturedPlaylists.length,
                     itemBuilder: (context, index) {
-                      final playlist = featuredPlaylists[index];
+                      final playlist = dynamicFeaturedPlaylists[index];
                       return _buildPlaylistCard(playlist);
                     },
                   ),
@@ -650,11 +814,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
-          ),
-        ),
+          );
+        },
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -848,15 +1014,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPlaylistCard(
-    Map<String, String> playlist, {
+    Map<String, dynamic> playlist, {
     bool useMargin = true,
   }) {
     final theme = Theme.of(context);
     return GestureDetector(
       onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Opening ${playlist["title"]}")));
+        final songs = playlistSongsData[playlist['id']];
+        if (songs != null && songs.isNotEmpty) {
+           widget.onPlaySong(songs[0], songs, 0);
+           showMusicToast(context, "Playing ${playlist['title']}", type: ToastType.success);
+        } else {
+           showMusicToast(context, "No songs in this playlist", type: ToastType.info);
+        }
       },
       child: Container(
         width: 160,

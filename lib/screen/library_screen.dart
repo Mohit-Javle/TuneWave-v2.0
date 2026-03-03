@@ -123,10 +123,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
               return _buildPlaylistCard(playlist);
             }, childCount: totalItems),
           ),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: 120),
+          ),
         ],
       );
     } else {
       return ListView.builder(
+        padding: const EdgeInsets.only(bottom: 120),
         itemCount: totalItems,
         itemBuilder: (context, index) {
           if (index == 0) {

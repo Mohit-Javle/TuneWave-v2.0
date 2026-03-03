@@ -13,6 +13,7 @@ import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:convert';
 
 class SearchScreen extends StatefulWidget {
   final Function(SongModel, List<SongModel>, int) onPlaySong;
@@ -28,7 +29,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<SongModel> _songResults = [];
   List<AlbumModel> _albumResults = [];
   List<ArtistModel> _artistResults = [];
-  List<String> _recentSearches = [];
+  List<Map<String, dynamic>> _recentItems = [];
   bool _isLoading = false;
   final ApiService _apiService = ApiService();
   Timer? _debounce;
@@ -48,38 +49,59 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _loadRecentSearches() async {
     final prefs = await SharedPreferences.getInstance();
+    final List<String> history = prefs.getStringList('recent_items_v2') ?? [];
     setState(() {
-      _recentSearches = prefs.getStringList('recent_searches') ?? [];
+      _recentItems = history.map((item) => json.decode(item) as Map<String, dynamic>).toList();
     });
   }
 
   Future<void> _saveRecentSearches() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('recent_searches', _recentSearches);
+    final List<String> history = _recentItems.map((item) => json.encode(item)).toList();
+    await prefs.setStringList('recent_items_v2', history);
   }
 
-  void _addToRecentSearches(String query) {
-    if (query.trim().isEmpty) return;
+  void _addToHistory(dynamic item, String type) {
+    Map<String, dynamic> historyItem;
+    
+    if (type == 'query') {
+      historyItem = {'type': 'query', 'data': item as String};
+    } else if (type == 'song') {
+      historyItem = {'type': 'song', 'data': (item as SongModel).toJson()};
+    } else if (type == 'album') {
+      historyItem = {'type': 'album', 'data': (item as AlbumModel).toJson()};
+    } else if (type == 'artist') {
+      historyItem = {'type': 'artist', 'data': (item as ArtistModel).toJson()};
+    } else {
+      return;
+    }
+
     setState(() {
-      _recentSearches.removeWhere((term) => term.toLowerCase() == query.trim().toLowerCase());
-      _recentSearches.insert(0, query.trim());
-      if (_recentSearches.length > 10) {
-        _recentSearches.removeLast();
+      // Remove existing occurrences
+      _recentItems.removeWhere((element) {
+        if (element['type'] != type) return false;
+        if (type == 'query') return element['data'] == historyItem['data'];
+        return element['data']['id'] == historyItem['data']['id'];
+      });
+      
+      _recentItems.insert(0, historyItem);
+      if (_recentItems.length > 20) {
+        _recentItems.removeLast();
       }
     });
     _saveRecentSearches();
   }
 
-  void _removeFromRecentSearches(String query) {
+  void _removeFromRecentSearches(Map<String, dynamic> item) {
     setState(() {
-      _recentSearches.remove(query);
+      _recentItems.remove(item);
     });
     _saveRecentSearches();
   }
 
   void _clearRecentSearches() {
     setState(() {
-      _recentSearches.clear();
+      _recentItems.clear();
     });
     _saveRecentSearches();
   }
@@ -111,7 +133,7 @@ class _SearchScreenState extends State<SearchScreen> {
     }
     
     if (saveHistory) {
-      _addToRecentSearches(query);
+      _addToHistory(query, 'query');
     }
 
     setState(() {
@@ -385,6 +407,11 @@ class _SearchScreenState extends State<SearchScreen> {
                               trailing: Consumer<FollowService>(
                                 builder: (context, followService, child) {
                                   final isFollowing = followService.isFollowing(artist.id);
+                                  if (isFollowing) {
+                                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                                      followService.updateArtistMetadata(artist.id, artist.name, artist.imageUrl);
+                                    });
+                                  }
                                   return SizedBox(
                                     height: 32,
                                     width: 100,
@@ -397,7 +424,11 @@ class _SearchScreenState extends State<SearchScreen> {
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                       ),
                                       onPressed: () {
-                                         followService.toggleFollow(artist.id);
+                                         followService.toggleFollow(
+                                            artist.id, 
+                                            name: artist.name, 
+                                            image: artist.imageUrl
+                                          );
                                       },
                                       child: Text(
                                          isFollowing ? "Following" : "Follow",
@@ -408,6 +439,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 }
                               ),
                               onTap: () {
+                                  _addToHistory(artist, 'artist');
                                   Navigator.pushNamed(
                                     context, 
                                     AppRoutes.artist, 
@@ -449,6 +481,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               final album = _albumResults[index];
                               return GestureDetector(
                                 onTap: () {
+                                  _addToHistory(album, 'album');
                                   Navigator.pushNamed(context, AppRoutes.album, arguments: album);
                                 },
                                 child: Container(
@@ -621,6 +654,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     ],
                                   ),
                                   onTap: () {
+                                    _addToHistory(song, 'song');
                                     final index = _songResults.indexOf(song);
                                     widget.onPlaySong(song, _songResults, index);
                                   },
@@ -639,7 +673,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
   Widget _buildRecentSearches(ThemeData theme) {
-    if (_recentSearches.isEmpty) {
+    if (_recentItems.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -647,7 +681,7 @@ class _SearchScreenState extends State<SearchScreen> {
             Icon(Icons.history, size: 64, color: theme.unselectedWidgetColor.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             Text(
-              "Search History is empty",
+              "Your recent searches will appear here",
               style: TextStyle(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   fontSize: 16),
@@ -670,33 +704,86 @@ class _SearchScreenState extends State<SearchScreen> {
                      style: TextStyle(
                         color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: 18,
                      ),
                   ),
-                  if (_recentSearches.isNotEmpty)
-                     TextButton(
-                        onPressed: _clearRecentSearches,
-                        child: const Text("Clear All", style: TextStyle(color: Color(0xFFFF6600))),
-                     ),
+                  TextButton(
+                     onPressed: _clearRecentSearches,
+                     child: const Text("Clear All", style: TextStyle(color: Color(0xFFFF6600))),
+                  ),
                ],
             ),
          ),
          Expanded(
             child: ListView.builder(
-               itemCount: _recentSearches.length,
+               padding: const EdgeInsets.only(bottom: 100),
+               itemCount: _recentItems.length,
                itemBuilder: (context, index) {
-                  final term = _recentSearches[index];
+                  final item = _recentItems[index];
+                  final type = item['type'] as String;
+                  final data = item['data'];
+
+                  Widget leading;
+                  String title;
+                  String? subtitle;
+                  VoidCallback onTap;
+
+                  if (type == 'query') {
+                    leading = const Icon(Icons.history);
+                    title = data as String;
+                    subtitle = 'Search';
+                    onTap = () {
+                      _searchController.text = title;
+                      _performSearch(title);
+                    };
+                  } else if (type == 'song') {
+                    final song = SongModel.fromJson(data);
+                    leading = ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(song.imageUrl, width: 40, height: 40, fit: BoxFit.cover),
+                    );
+                    title = song.name;
+                    final primaryArtist = song.artist.split(',')[0].trim();
+                    subtitle = 'Song • $primaryArtist';
+                    onTap = () {
+                       widget.onPlaySong(song, [song], 0);
+                    };
+                  } else if (type == 'artist') {
+                    final artist = ArtistModel.fromJson(data);
+                    leading = CircleAvatar(
+                      radius: 20,
+                      backgroundImage: NetworkImage(artist.imageUrl),
+                    );
+                    title = artist.name;
+                    subtitle = 'Artist';
+                    onTap = () {
+                      Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
+                    };
+                  } else if (type == 'album') {
+                    final album = AlbumModel.fromJson(data);
+                    leading = ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(album.imageUrl, width: 40, height: 40, fit: BoxFit.cover),
+                    );
+                    title = album.name;
+                    final primaryArtist = album.artist.split(',')[0].trim();
+                    subtitle = 'Album • $primaryArtist';
+                    onTap = () {
+                      Navigator.pushNamed(context, AppRoutes.album, arguments: album);
+                    };
+                  } else {
+                    return const SizedBox.shrink();
+                  }
+
                   return ListTile(
-                     leading: Icon(Icons.history, color: theme.unselectedWidgetColor),
-                     title: Text(term, style: TextStyle(color: theme.colorScheme.onSurface)),
+                     leading: SizedBox(width: 40, height: 40, child: Center(child: leading)),
+                     title: Text(title, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.w500)),
+                     subtitle: Text(subtitle, style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
                      trailing: IconButton(
                         icon: const Icon(Icons.close, size: 20),
-                        onPressed: () => _removeFromRecentSearches(term),
+                        onPressed: () => _removeFromRecentSearches(item),
                      ),
-                     onTap: () {
-                        _searchController.text = term;
-                        _performSearch(term);
-                     },
+                     onTap: onTap,
                   );
                },
             ),

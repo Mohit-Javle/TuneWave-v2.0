@@ -2,7 +2,9 @@ class SongModel {
   final String id;
   final String name;
   final String artist;
+  final String? artistId; // Added for correct artist lookup
   final String album;
+  final String? albumId; // Added for correct album lookup
   final String imageUrl;
   final String downloadUrl;
   final bool hasLyrics;
@@ -17,7 +19,9 @@ class SongModel {
     required this.id,
     required this.name,
     required this.artist,
+    this.artistId,
     required this.album,
+    this.albumId,
     required this.imageUrl,
     required this.downloadUrl,
     required this.hasLyrics,
@@ -49,13 +53,27 @@ class SongModel {
       return json['subtitle'] ?? 'Unknown Artist';
     }
 
+    String? getArtistId(Map<String, dynamic>? moreInfo) {
+      if (moreInfo == null) return null;
+      final artistMap = moreInfo['artistMap'];
+      if (artistMap != null && artistMap['primary_artists'] != null) {
+        final artists = artistMap['primary_artists'] as List;
+        if (artists.isNotEmpty) {
+          return artists.first['id']?.toString();
+        }
+      }
+      return null;
+    }
+
     final moreInfo = json['more_info'] is Map ? json['more_info'] : {};
 
     return SongModel(
       id: json['id'] ?? '',
       name: json['title']?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? 'Unknown',
       artist: getArtists(moreInfo),
+      artistId: getArtistId(moreInfo),
       album: moreInfo['album']?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? '',
+      albumId: moreInfo['album_id']?.toString(),
       imageUrl: getImageUrl(json['image']),
       downloadUrl: decryptedUrl,
       hasLyrics: moreInfo['has_lyrics'] == 'true',
@@ -71,7 +89,9 @@ class SongModel {
         id: json['id'],
         name: json['name'],
         artist: json['artist'],
+        artistId: json['artistId'],
         album: json['album'],
+        albumId: json['albumId'],
         imageUrl: json['imageUrl'],
         downloadUrl: json['downloadUrl'],
         hasLyrics: json['hasLyrics'] ?? false,
@@ -99,7 +119,9 @@ class SongModel {
       'id': id,
       'name': name,
       'artist': artist,
+      'artistId': artistId,
       'album': album,
+      'albumId': albumId,
       'imageUrl': imageUrl,
       'downloadUrl': downloadUrl,
       'hasLyrics': hasLyrics,

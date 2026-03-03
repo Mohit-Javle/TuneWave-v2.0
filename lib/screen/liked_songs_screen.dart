@@ -190,6 +190,9 @@ class LikedSongsScreen extends StatelessWidget {
                   );
                 }, childCount: likedSongs.length),
               ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 100),
+              ),
           ],
         ),
       ),

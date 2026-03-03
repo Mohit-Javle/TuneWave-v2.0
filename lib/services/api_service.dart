@@ -172,6 +172,8 @@ class ApiService {
         }
 
         return {
+          'name': data['name'] ?? data['title'] ?? '',
+          'image': data['image'] ?? '',
           'topSongs': topSongs,
           'albums': albums,
         };
