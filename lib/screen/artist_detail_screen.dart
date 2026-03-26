@@ -597,7 +597,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
             ],
 
             // Bottom padding for mini player
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            const SliverToBoxAdapter(child: SizedBox(height: 150)),
           ],
         ],
       ),

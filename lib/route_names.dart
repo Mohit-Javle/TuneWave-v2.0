@@ -17,4 +17,5 @@ class AppRoutes {
   static const String album = '/album';
   static const String player = '/player';
   static const String personalization = '/personalization';
+  static const String playlist = '/playlist';
 }

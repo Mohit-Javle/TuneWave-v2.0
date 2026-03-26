@@ -341,7 +341,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 ),
              ),
              const SliverToBoxAdapter(
-              child: SizedBox(height: 100), // Bottom padding for miniplayer
+              child: SizedBox(height: 150), // Bottom padding for miniplayer
             ),
         ],
       ),

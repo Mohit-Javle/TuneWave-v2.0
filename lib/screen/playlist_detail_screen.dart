@@ -107,28 +107,41 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         final List<SongModel> playlistSongs = currentPlaylist.songs;
 
         return Scaffold(
-          body: CustomScrollView(
-            slivers: [
-              _buildSliverAppBar(
-                context,
-                theme,
-                currentPlaylist.name,
-                playlistSongs,
+          extendBodyBehindAppBar: true,
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: theme.brightness == Brightness.light
+                    ? [Colors.white, const Color.fromARGB(100, 255, 218, 192)]
+                    : [theme.colorScheme.surface, const Color(0xFF121212)],
+                stops: const [0.3, 0.7],
               ),
-              _buildActionButtons(
-                context,
-                musicService,
-                playlistSongs,
-                currentPlaylist,
-              ),
-              if (playlistSongs.isEmpty)
-                _buildEmptyState(theme)
-              else
-                _buildSongList(playlistSongs, musicService),
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
-              ),
-            ],
+            ),
+            child: CustomScrollView(
+              slivers: [
+                _buildSliverAppBar(
+                  context,
+                  theme,
+                  currentPlaylist.name,
+                  playlistSongs,
+                ),
+                _buildActionButtons(
+                  context,
+                  musicService,
+                  playlistSongs,
+                  currentPlaylist,
+                ),
+                if (playlistSongs.isEmpty)
+                  _buildEmptyState(theme)
+                else
+                  _buildSongList(playlistSongs, musicService),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 150), // Standard bottom padding for miniplayer
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -141,74 +154,32 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     String playlistName,
     List<SongModel> songs,
   ) {
+    final textDark = theme.colorScheme.onSurface;
+
     return SliverAppBar(
-      expandedHeight: 250,
+      backgroundColor: theme.colorScheme.surface.withOpacity(0.8),
+      elevation: 0,
       pinned: true,
-      stretch: true,
-      backgroundColor: theme.colorScheme.surface,
+      centerTitle: false,
+      title: Text(
+        playlistName,
+        style: TextStyle(
+          color: textDark,
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+        ),
+      ),
+      iconTheme: IconThemeData(color: textDark),
       actions: [
         IconButton(
-          icon: const Icon(Icons.edit_outlined),
+          icon: const Icon(Icons.edit_outlined, color: Color(0xFFFF6600)),
           onPressed: _showRenamePlaylistDialog,
           tooltip: 'Rename Playlist',
         ),
       ],
-      flexibleSpace: FlexibleSpaceBar(
-        title: Text(
-          playlistName,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                blurRadius: 10.0,
-                color: Color.fromARGB(178, 0, 0, 0),
-                offset: Offset(2.0, 2.0),
-              ),
-            ],
-          ),
-        ),
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            _buildPlaylistArt(songs),
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color.fromARGB(153, 0, 0, 0),
-                    Colors.transparent,
-                    Color.fromARGB(204, 0, 0, 0),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  Widget _buildPlaylistArt(List<SongModel> songs) {
-    if (songs.isEmpty) {
-      return Container(
-        color: Colors.grey[800],
-        child: const Icon(Icons.music_note, color: Colors.white, size: 80),
-      );
-    }
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-      ),
-      itemCount: songs.length > 4 ? 4 : songs.length,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        return Image.network(songs[index].imageUrl, fit: BoxFit.cover);
-      },
-    );
-  }
 
   SliverToBoxAdapter _buildActionButtons(
     BuildContext context,

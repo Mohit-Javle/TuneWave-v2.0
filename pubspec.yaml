@@ -59,6 +59,12 @@ dependencies:
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.2
+  file_picker: ^10.3.10
+  csv: 6.0.0
+  string_similarity: ^2.1.1
+  url_launcher: ^6.3.2
+  flutter_local_notifications: 17.2.3
+  scrollable_positioned_list: ^0.3.8
 
 dev_dependencies:
   flutter_launcher_icons: "^0.13.1"

@@ -389,6 +389,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => PlaylistDetailScreen(playlist: playlist),
+            settings: const RouteSettings(name: AppRoutes.playlist),
           ),
         );
       },
@@ -449,6 +450,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => PlaylistDetailScreen(playlist: playlist),
+            settings: const RouteSettings(name: AppRoutes.playlist),
           ),
         );
       },

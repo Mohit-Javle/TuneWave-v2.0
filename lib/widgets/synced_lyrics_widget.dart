@@ -1,161 +1,245 @@
+import 'dart:convert';
+import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
+import 'package:provider/provider.dart';
+import '../services/music_service.dart';
 
-class LyricLine {
+class LrcLine {
   final Duration timestamp;
   final String text;
 
-  LyricLine({required this.timestamp, required this.text});
-
-  static List<LyricLine> parseLyrics(String rawLyrics) {
-    final lines = rawLyrics.split('\n');
-    final List<LyricLine> lyricLines = [];
-    
-    // Try to parse LRC format first (e.g., [00:12.00]Lyric text)
-    final lrcRegex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2})\](.*)');
-    
-    for (var line in lines) {
-      final match = lrcRegex.firstMatch(line);
-      if (match != null) {
-        final minutes = int.parse(match.group(1)!);
-        final seconds = int.parse(match.group(2)!);
-        final milliseconds = int.parse(match.group(3)!) * 10;
-        final text = match.group(4)!.trim();
-        
-        if (text.isNotEmpty) {
-          lyricLines.add(LyricLine(
-            timestamp: Duration(
-              minutes: minutes,
-              seconds: seconds,
-              milliseconds: milliseconds,
-            ),
-            text: text,
-          ));
-        }
-      } else if (line.trim().isNotEmpty) {
-        // If not LRC format, add as plain text with estimated timing
-        lyricLines.add(LyricLine(
-          timestamp: Duration(seconds: lyricLines.length * 3),
-          text: line.trim(),
-        ));
-      }
-    }
-    
-    return lyricLines;
-  }
+  LrcLine({required this.timestamp, required this.text});
 }
 
 class SyncedLyricsWidget extends StatefulWidget {
-  final String lyrics;
-  final Duration currentPosition;
-  final Function(Duration) onSeek;
+  final SongModel song;
 
-  const SyncedLyricsWidget({
-    super.key,
-    required this.lyrics,
-    required this.currentPosition,
-    required this.onSeek,
-  });
+  const SyncedLyricsWidget({super.key, required this.song});
 
   @override
   State<SyncedLyricsWidget> createState() => _SyncedLyricsWidgetState();
 }
 
 class _SyncedLyricsWidgetState extends State<SyncedLyricsWidget> {
-  late List<LyricLine> _lyricLines;
-  final ScrollController _scrollController = ScrollController();
-  int _currentLineIndex = 0;
+  final ItemScrollController _itemScrollController = ItemScrollController();
+  final ScrollOffsetController _scrollOffsetController = ScrollOffsetController();
+  
+  List<LrcLine> _syncedLines = [];
+  String? _plainLyrics;
+  bool _isLoading = true;
+  bool _isError = false;
+  int _currentLineIndex = -1;
+  Timer? _syncTimer;
 
   @override
   void initState() {
     super.initState();
-    _lyricLines = LyricLine.parseLyrics(widget.lyrics);
+    _fetchLyrics();
   }
 
   @override
   void didUpdateWidget(SyncedLyricsWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.lyrics != widget.lyrics) {
-      _lyricLines = LyricLine.parseLyrics(widget.lyrics);
+    if (oldWidget.song.id != widget.song.id || oldWidget.song.name != widget.song.name) {
+      _fetchLyrics();
     }
-    _updateCurrentLine();
   }
 
-  void _updateCurrentLine() {
-    int newIndex = 0;
-    for (int i = 0; i < _lyricLines.length; i++) {
-      if (_lyricLines[i].timestamp <= widget.currentPosition) {
-        newIndex = i;
+  Future<void> _fetchLyrics() async {
+    setState(() {
+      _isLoading = true;
+      _isError = false;
+      _syncedLines = [];
+      _plainLyrics = null;
+      _currentLineIndex = -1;
+    });
+
+    _syncTimer?.cancel();
+
+    try {
+      final uri = Uri.parse(
+          'https://lrclib.net/api/get?artist_name=${Uri.encodeComponent(widget.song.artist)}&track_name=${Uri.encodeComponent(widget.song.name)}');
+      
+      final response = await http.get(uri).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final syncedStr = data['syncedLyrics'];
+        final plainStr = data['plainLyrics'];
+
+        if (syncedStr != null && syncedStr.toString().trim().isNotEmpty) {
+          _parseSyncedLyrics(syncedStr.toString());
+          _startSyncing();
+        } else if (plainStr != null && plainStr.toString().trim().isNotEmpty) {
+          _plainLyrics = plainStr.toString();
+        } else {
+          _isError = true;
+        }
       } else {
-        break;
+        _isError = true;
+      }
+    } catch (e) {
+      _isError = true;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _parseSyncedLyrics(String lrc) {
+    final lines = lrc.split('\n');
+    final RegExp timeRegExp = RegExp(r'\[(\d+):(\d+)\.(\d+)\](.*)');
+    
+    _syncedLines = [];
+    for (String line in lines) {
+      final match = timeRegExp.firstMatch(line);
+      if (match != null) {
+        final minutes = int.parse(match.group(1)!);
+        final seconds = int.parse(match.group(2)!);
+        int milliseconds = int.parse(match.group(3)!);
+        
+        if (match.group(3)!.length == 2) {
+          milliseconds *= 10;
+        }
+        
+        final text = match.group(4)!.trim();
+        
+        if (text.isNotEmpty) {
+           _syncedLines.add(LrcLine(
+             timestamp: Duration(
+               minutes: minutes,
+               seconds: seconds,
+               milliseconds: milliseconds,
+             ),
+             text: text,
+           ));
+        }
       }
     }
-
-    if (newIndex != _currentLineIndex) {
-      setState(() {
-        _currentLineIndex = newIndex;
-      });
-      _scrollToCurrentLine();
-    }
   }
 
-  void _scrollToCurrentLine() {
-    if (_scrollController.hasClients && _lyricLines.isNotEmpty) {
-      final position = _currentLineIndex * 60.0; // Approximate line height
-      _scrollController.animateTo(
-        position,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
+  void _startSyncing() {
+    _syncTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      final musicService = context.read<MusicService>();
+      final position = musicService.currentDurationNotifier.value;
+      
+      if (_syncedLines.isEmpty) return;
+      
+      int newIndex = _syncedLines.lastIndexWhere((line) => line.timestamp <= position);
+      if (newIndex == -1 && _syncedLines.isNotEmpty) {
+        // If before the first line, we might still want to highlight nothing, or default
+        newIndex = -1; // -1 means no active line
+      }
+      
+      if (newIndex != _currentLineIndex) {
+        setState(() {
+          _currentLineIndex = newIndex;
+        });
+        
+        if (newIndex >= 0 && _itemScrollController.isAttached) {
+          _itemScrollController.scrollTo(
+            index: newIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            alignment: 0.4, // Keep current line relatively centered
+          );
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _syncTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
-    if (_lyricLines.isEmpty) {
-      return Center(
-        child: Text(
-          'No lyrics available',
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-          ),
+    if (_isLoading) {
+      return Container(
+        height: 400,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(),
         ),
       );
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 100),
-      itemCount: _lyricLines.length,
-      itemBuilder: (context, index) {
-        final line = _lyricLines[index];
-        final isActive = index == _currentLineIndex;
-        final isPast = index < _currentLineIndex;
+    if (_isError || (_syncedLines.isEmpty && _plainLyrics == null)) {
+      return _buildMessage(
+        widget.song.name.toLowerCase().contains("instrumental") 
+            ? "No lyrics for this song" 
+            : "Lyrics not available"
+      );
+    }
 
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+         borderRadius: BorderRadius.circular(16),
+         image: DecorationImage(
+           image: NetworkImage(widget.song.imageUrl),
+           fit: BoxFit.cover,
+         ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+             color: Colors.black.withValues(alpha: 0.4),
+             child: _syncedLines.isNotEmpty ? _buildSyncedView() : _buildPlainView(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSyncedView() {
+    return ScrollablePositionedList.builder(
+      itemScrollController: _itemScrollController,
+      scrollOffsetController: _scrollOffsetController,
+      padding: const EdgeInsets.symmetric(vertical: 150, horizontal: 20),
+      itemCount: _syncedLines.length,
+      itemBuilder: (context, index) {
+        final line = _syncedLines[index];
+        final isActive = index == _currentLineIndex;
+        // Lines can fade even when not active
+        final isPast = index < _currentLineIndex;
+        
         return GestureDetector(
-          onTap: () => widget.onSeek(line.timestamp),
+          onTap: () {
+            context.read<MusicService>().seek(line.timestamp);
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 24),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Text(
               line.text,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: isActive ? 24 : 18,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                color: isActive
-                    ? const Color(0xFFFF6600)
-                    : isPast
-                        ? theme.colorScheme.onSurface.withValues(alpha: 0.5)
-                        : theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                height: 1.5,
+                color: isActive 
+                    ? Colors.white 
+                    : isPast 
+                        ? Colors.white.withValues(alpha: 0.3) 
+                        : Colors.white.withValues(alpha: 0.5),
+                fontSize: isActive ? 26 : 18,
+                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
               ),
             ),
           ),
@@ -163,4 +247,41 @@ class _SyncedLyricsWidgetState extends State<SyncedLyricsWidget> {
       },
     );
   }
+
+  Widget _buildPlainView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+      child: Center(
+        child: Text(
+          _plainLyrics ?? "",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.8),
+            fontSize: 18,
+            height: 1.8,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessage(String message) {
+    return Container(
+       height: 400,
+       decoration: BoxDecoration(
+         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
+         borderRadius: BorderRadius.circular(16),
+       ),
+       child: Center(
+         child: Text(
+           message,
+           style: TextStyle(
+             color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+             fontSize: 16,
+           ),
+         ),
+       ),
+    );
+  }
 }
+

@@ -37,6 +37,7 @@ import 'package:clone_mp/screen/recently_played_screen.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/screen/downloads_page.dart';
 import 'package:clone_mp/services/personalization_service.dart';
+import 'package:clone_mp/services/spotify_import_service.dart';
 import 'package:clone_mp/screens/personalization/personalization_screen.dart';
 // Needed for SongModel in MainScreen
 
@@ -135,6 +136,11 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
             ChangeNotifierProvider(create: (_) => FollowService()),
             ChangeNotifierProvider(create: (_) => UiStateService()),
             ChangeNotifierProvider(create: (_) => PersonalizationService()),
+            ChangeNotifierProvider(
+              create: (context) => SpotifyImportService(
+                Provider.of<PlaylistService>(context, listen: false),
+              ),
+            ),
           ],
           child: const MyApp(),
         );

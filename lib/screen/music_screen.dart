@@ -1,11 +1,11 @@
 // ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
-import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 
 import 'package:clone_mp/widgets/create_playlist_sheet.dart';
 import 'package:clone_mp/widgets/download_button.dart';
+import 'package:clone_mp/widgets/synced_lyrics_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'dart:math' as math;
@@ -83,10 +83,8 @@ class MusicPlayerScreen extends StatefulWidget {
 class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     with TickerProviderStateMixin {
   late AnimationController _rotationController;
-  Future<String?>? _lyricsFuture;
 
   late final MusicService _musicService;
-  final ApiService _apiService = ApiService();
 
   static const Color primaryOrange = Color(0xFFFF6600);
 
@@ -107,27 +105,10 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
       _rotationController.repeat();
     }
 
-    final currentSong = _musicService.currentSongNotifier.value;
-    if (currentSong != null) {
-      _fetchLyrics(currentSong);
-    }
-
     // Hide global mini player logic moved to MiniPlayerObserver
   }
 
-  void _fetchLyrics(SongModel song) {
-    if (mounted) {
-      setState(() {
-        _lyricsFuture = _apiService.getLyrics(song.id);
-      });
-    }
-  }
-
   void _handleSongChange() {
-    final newSong = _musicService.currentSongNotifier.value;
-    if (newSong != null) {
-      _fetchLyrics(newSong);
-    }
     if (mounted) setState(() {});
   }
 
@@ -422,7 +403,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                               accentColor, // Pass accent color
                             ),
                             const SizedBox(height: 40),
-                            _buildLyricsSection(theme, accentColor), // Pass accent color
+                            _buildLyricsSection(theme, currentSong),
                           ],
                         ),
                       ),
@@ -591,17 +572,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     );
   }
 
-  Widget _buildLyricsSection(ThemeData theme, Color? accentColor) {
-    Widget centeredMessage(String message) {
-      return Center(
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
-        ),
-      );
-    }
-
+  Widget _buildLyricsSection(ThemeData theme, SongModel currentSong) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
@@ -616,52 +587,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
             ),
           ),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 400,
-            child: FutureBuilder<String?>(
-              future: _lyricsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(
-                    child: CircularProgressIndicator(color: accentColor ?? primaryOrange),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return centeredMessage("Error loading lyrics.");
-                }
-
-                if (!snapshot.hasData ||
-                    snapshot.data!.isEmpty ||
-                    snapshot.data == 'No lyrics found.') {
-                  return centeredMessage("Lyrics not found for this song.");
-                }
-
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0,
-                    vertical: 16.0,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.onSurface.withOpacity(0.05),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      snapshot.data!,
-                      textAlign: TextAlign.start,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withOpacity(0.8),
-                        fontSize: 16,
-                        height: 1.6,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          SyncedLyricsWidget(song: currentSong),
           const SizedBox(height: 50),
         ],
       ),

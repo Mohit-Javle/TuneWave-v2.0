@@ -2,6 +2,7 @@
 // ignore_for_file: prefer_final_fields, deprecated_member_use, use_build_context_synchronously
 
 import 'package:clone_mp/services/api_service.dart';
+import 'package:clone_mp/widgets/spotify_import_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
@@ -336,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 'Are you sure you want to sign out?',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
               const SizedBox(height: 25),
@@ -348,7 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         foregroundColor: theme.colorScheme.onSurface,
                         side: BorderSide(
-                          color: theme.colorScheme.onSurface.withOpacity(0.3),
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -480,6 +481,18 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     ).then((_) => uiStateService.setModalActive(false));
+  }
+
+  void _showSpotifyImportSheet(BuildContext context) {
+    final uiStateService = Provider.of<UiStateService>(context, listen: false);
+    uiStateService.setModalActive(true); // This hides the mini player
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const SpotifyImportSheet(),
+    ).then((_) => uiStateService.setModalActive(false)); // This restores the mini player
   }
 
   void _confirmDelete(BuildContext context, SongModel song, DownloadService downloadService) {
@@ -662,7 +675,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           selectedColor: const Color(0xFFFF6600),
                           backgroundColor: theme.colorScheme.surface
-                              .withOpacity(0.5),
+                              .withValues(alpha: 0.5),
                           labelStyle: TextStyle(
                             color: isSelected
                                 ? Colors.white
@@ -716,7 +729,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: Text(
                           'Loading songs...',
                           style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
+                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                             fontSize: 16,
                           ),
                         ),
@@ -936,7 +949,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               song.artist,
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 fontSize: 12,
               ),
               maxLines: 1,
@@ -1058,7 +1071,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               "${playlist["songCount"]} songs",
               style: TextStyle(
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 fontSize: 12,
               ),
             ),
@@ -1161,6 +1174,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   iconColor: iconColor,
                   textColor: textColor,
                   selectedTileColor: selectedTileColor,
+                ),
+                _buildDrawerItem(
+                  icon: Icons.playlist_add_rounded,
+                  text: 'Import Spotify Playlist',
+                  onTap: () {
+                    Navigator.pop(context); // Close drawer
+                    _showSpotifyImportSheet(context);
+                  },
+                  selectedColor: const Color(0xFF1DB954), // Spotify Green
+                  iconColor: const Color(0xFF1DB954),
+                  textColor: textColor,
+                  selectedTileColor: const Color(0xFF1DB954).withValues(alpha: 0.1),
                 ),
                 const Divider(),
                 _buildDrawerItem(

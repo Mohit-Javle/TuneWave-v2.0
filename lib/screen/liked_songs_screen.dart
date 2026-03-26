@@ -191,7 +191,7 @@ class LikedSongsScreen extends StatelessWidget {
                 }, childCount: likedSongs.length),
               ),
               const SliverToBoxAdapter(
-                child: SizedBox(height: 100),
+                child: SizedBox(height: 150),
               ),
           ],
         ),

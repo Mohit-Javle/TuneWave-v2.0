@@ -6,7 +6,7 @@ class AppRouteObserver extends NavigatorObserver {
   String? get currentRoute => currentRouteNotifier.value;
 
   void _updateRoute(Route<dynamic>? route) {
-    if (route is PageRoute && route.settings.name != null) {
+    if (route is PageRoute) {
       currentRouteNotifier.value = route.settings.name;
     }
   }

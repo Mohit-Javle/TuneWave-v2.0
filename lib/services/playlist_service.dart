@@ -8,16 +8,33 @@ class Playlist {
   final String id;
   final String name;
   final List<SongModel> songs;
+  final String? source;
+  final List<Map<String, String>>? unmatchedSongs;
+  final DateTime? createdAt;
 
-  Playlist({required this.id, required this.name, this.songs = const []});
+  Playlist({
+    required this.id,
+    required this.name,
+    this.songs = const [],
+    this.source,
+    this.unmatchedSongs,
+    this.createdAt,
+  });
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
-    var songList = json['songs'] as List;
+    var songList = json['songs'] as List? ?? [];
     List<SongModel> songs = songList.map((i) => SongModel.fromJson(i)).toList();
+    
+    var unmatchedList = json['unmatchedSongs'] as List? ?? [];
+    List<Map<String, String>> unmatched = unmatchedList.map((i) => Map<String, String>.from(i)).toList();
+
     return Playlist(
       id: json['id'],
       name: json['name'],
       songs: songs,
+      source: json['source'],
+      unmatchedSongs: unmatched,
+      createdAt: json['createdAt'] != null ? (json['createdAt'] as Timestamp).toDate() : null,
     );
   }
 
@@ -26,6 +43,9 @@ class Playlist {
       'id': id,
       'name': name,
       'songs': songs.map((s) => s.toJson()).toList(),
+      'source': source,
+      'unmatchedSongs': unmatchedSongs,
+      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
     };
   }
 }
@@ -164,8 +184,15 @@ class PlaylistService with ChangeNotifier {
     }
   }
 
-  void createPlaylist(String name) {
-    final newPlaylist = Playlist(id: _uuid.v4(), name: name);
+  void createPlaylist(String name, {String? source, List<Map<String, String>>? unmatchedSongs, List<SongModel>? initialSongs}) {
+    final newPlaylist = Playlist(
+      id: _uuid.v4(),
+      name: name,
+      source: source,
+      unmatchedSongs: unmatchedSongs,
+      songs: initialSongs ?? [],
+      createdAt: DateTime.now(),
+    );
     _playlists.add(newPlaylist);
     notifyListeners();
     _savePlaylists();
