@@ -136,7 +136,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 if (playlistSongs.isEmpty)
                   _buildEmptyState(theme)
                 else
-                  _buildSongList(playlistSongs, musicService),
+                  _buildSongList(currentPlaylist, playlistSongs, musicService),
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 150), // Standard bottom padding for miniplayer
                 ),
@@ -212,6 +212,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   ? null
                   : () {
                       musicService.loadPlaylist(playlistSongs, 0);
+                      musicService.logPlayContext(currentPlaylist.id, 'playlist', currentPlaylist.name, playlistSongs.isNotEmpty ? playlistSongs.first.imageUrl : '', playlistSongs);
                     },
               icon: const Icon(Icons.play_arrow),
               label: const Text('Play'),
@@ -235,6 +236,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       final shuffledList = List<SongModel>.from(playlistSongs)
                         ..shuffle();
                       musicService.loadPlaylist(shuffledList, 0);
+                      musicService.logPlayContext(currentPlaylist.id, 'playlist', currentPlaylist.name, playlistSongs.isNotEmpty ? playlistSongs.first.imageUrl : '', playlistSongs);
                     },
               tooltip: 'Shuffle',
             ),
@@ -275,6 +277,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   }
 
   SliverList _buildSongList(
+    Playlist currentPlaylist,
     List<SongModel> playlistSongs,
     MusicService musicService,
   ) {
@@ -306,7 +309,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             final playlistService = Provider.of<PlaylistService>(context, listen: false);
             triggerFallingItem(
               context, 
-              _buildSongTile(song, musicService, playlistSongs, index, isStatic: true, isActive: musicService.isActive(song.id)),
+              _buildSongTile(song, musicService, playlistSongs, currentPlaylist, index, isStatic: true, isActive: musicService.isActive(song.id)),
               backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               manualPosition: capturedPosition,
               manualSize: capturedSize,
@@ -317,14 +320,14 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           },
           child: Container(
             key: tileKey,
-            child: _buildSongTile(song, musicService, playlistSongs, index, isActive: musicService.isActive(song.id)),
+            child: _buildSongTile(song, musicService, playlistSongs, currentPlaylist, index, isActive: musicService.isActive(song.id)),
           ),
         );
       }, childCount: playlistSongs.length),
     );
   }
 
-  Widget _buildSongTile(SongModel song, MusicService musicService, List<SongModel> playlistSongs, int index, {bool isStatic = false, bool isActive = false}) {
+  Widget _buildSongTile(SongModel song, MusicService musicService, List<SongModel> playlistSongs, Playlist? currentPlaylist, int index, {bool isStatic = false, bool isActive = false}) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
@@ -362,6 +365,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       ),
       onTap: isStatic ? null : () {
         musicService.loadPlaylist(playlistSongs, index);
+        if (currentPlaylist != null) {
+          musicService.logPlayContext(currentPlaylist.id, 'playlist', currentPlaylist.name, playlistSongs.isNotEmpty ? playlistSongs.first.imageUrl : '', playlistSongs);
+        }
       },
     );
   }

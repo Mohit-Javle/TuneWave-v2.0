@@ -15,9 +15,8 @@ import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/widgets/avatar_image_provider.dart';
-import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/widgets/music_toast.dart';
-import 'dart:math';
+import 'package:clone_mp/models/album_model.dart';
 
 class HomeScreen extends StatefulWidget {
   final Function(SongModel, List<SongModel>, int) onPlaySong;
@@ -199,20 +198,7 @@ class _HomeScreenState extends State<HomeScreen> {
         allRecentSongs.shuffle();
         allRecentSongs = allRecentSongs.take(10).toList();
 
-        // Optimized Top Charts query
-        if (userGenres.isNotEmpty) {
-          final randomGenre = userGenres[Random().nextInt(userGenres.length)];
-          allChartSongs = await api.searchSongs("$randomGenre Weekly Top");
-          if (allChartSongs.length < 5) {
-            final backup = await api.searchSongs("$randomGenre trending");
-            allChartSongs.addAll(backup);
-          }
-        }
-        
-        // Solid fallback for charts
-        if (allChartSongs.isEmpty) {
-          allChartSongs = await api.searchSongs("Top Hindi Songs 2024");
-        }
+        // Removed Top Charts fetching to heavily optimize home screen load times
         // --- DYNAMIC FEATURED PLAYLISTS ---
         final playlistService = Provider.of<PlaylistService>(context, listen: false);
 
@@ -268,7 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         // Guest fallback
         allRecentSongs = await api.searchSongs("Trending Songs");
-        allChartSongs = await api.searchSongs("Top Hits 2024");
         artistsList = [
           {"name": "Seedhe Maut", "image": "https://tse2.mm.bing.net/th?q=Seedhe+Maut+Rapper&w=500&h=500&c=7"},
           {"name": "Arijit Singh", "image": "https://tse2.mm.bing.net/th?q=Arijit+Singh+Singer&w=500&h=500&c=7"},
@@ -403,85 +388,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showMoreMenu(BuildContext context, SongModel song) {
-    final uiStateService = Provider.of<UiStateService>(context, listen: false);
-    final musicService = Provider.of<MusicService>(context, listen: false);
-    
-    uiStateService.setModalActive(true);
-
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Consumer<DownloadService>(
-          builder: (context, downloadService, child) {
-            final isDownloaded = downloadService.isSongDownloaded(song.id);
-            final isDownloading = downloadService.isDownloading(song.id);
-            
-            return SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        song.imageUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    title: Text(song.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(song.artist),
-                  ),
-                  const Divider(),
-                  ListTile(
-                    leading: Icon(
-                      isDownloaded ? Icons.download_done_rounded : Icons.download_rounded, 
-                      color: isDownloaded ? Colors.green : const Color(0xFFFF6600)
-                    ),
-                    title: Text(isDownloading ? "Downloading..." : (isDownloaded ? "Delete Download" : "Download")),
-                    onTap: () async {
-                      if (isDownloading) return;
-                      
-                      if (isDownloaded) {
-                        Navigator.pop(context);
-                        _confirmDelete(context, song, downloadService);
-                      } else {
-                        Navigator.pop(context);
-                        showMusicToast(context, 'Downloading "${song.name}"...', type: ToastType.info);
-                        await downloadService.downloadSong(song);
-                      }
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.playlist_add_rounded, color: Color(0xFFFF6600)),
-                    title: const Text("Add to Queue"),
-                    onTap: () {
-                      musicService.addToQueue(song);
-                      Navigator.pop(context);
-                      showMusicToast(context, "Added to queue", type: ToastType.success);
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.info_outline_rounded, color: Color(0xFFFF6600)),
-                    title: const Text("Song Details"),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _showSongDetails(context, song);
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ).then((_) => uiStateService.setModalActive(false));
-  }
 
   void _showSpotifyImportSheet(BuildContext context) {
     final uiStateService = Provider.of<UiStateService>(context, listen: false);
@@ -495,64 +401,6 @@ class _HomeScreenState extends State<HomeScreen> {
     ).then((_) => uiStateService.setModalActive(false)); // This restores the mini player
   }
 
-  void _confirmDelete(BuildContext context, SongModel song, DownloadService downloadService) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Download'),
-        content: Text('Are you sure you want to delete "${song.name}"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final success = await downloadService.deleteSong(song.id);
-              if (context.mounted) {
-                showMusicToast(context, success ? 'Deleted' : 'Failed to delete', type: success ? ToastType.info : ToastType.error);
-              }
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSongDetails(BuildContext context, SongModel song) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Song Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Title: ${song.name}"),
-            const SizedBox(height: 8),
-            Text("Artist: ${song.artist}"),
-            const SizedBox(height: 8),
-            Text("Album: ${song.album}"),
-            if (song.duration != null) ...[
-              const SizedBox(height: 8),
-              Text("Duration: ${_formatDuration(song.duration)}"),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-        ],
-      ),
-    );
-  }
-
-  String _formatDuration(String? dur) {
-    if (dur == null || dur.isEmpty) return "";
-    final totalSec = int.tryParse(dur) ?? 0;
-    if (totalSec == 0) return "";
-    final m = totalSec ~/ 60;
-    final s = totalSec % 60;
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -650,180 +498,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              SliverToBoxAdapter(
-                child: Container(
-                  height: 50,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: genres.length,
-                    itemBuilder: (context, index) {
-                      final genre = genres[index];
-                      final isSelected = selectedFilter == genre;
-                      return Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        child: FilterChip(
-                          label: Text(genre),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              selectedFilter = genre;
-                              // In a real app we would refetch based on genre
-                              // _loadData(genre);
-                            });
-                          },
-                          selectedColor: const Color(0xFFFF6600),
-                          backgroundColor: theme.colorScheme.surface
-                              .withValues(alpha: 0.5),
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          side: BorderSide.none,
-                          showCheckmark: false,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Recommended For You"),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: recentlyPlayed.length,
-                    itemBuilder: (context, index) {
-                      final song = recentlyPlayed[index];
-                      return _buildSongCard(song);
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader(
-                  "Top Charts",
-                  showSeeAll: true,
-                  seeAllText: showAllTopCharts ? "Show Less" : "See More",
-                  onSeeAll: () {
-                    setState(() {
-                      showAllTopCharts = !showAllTopCharts;
-                    });
-                  },
-                ),
-              ),
-              topCharts.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: Container(
-                        height: 100,
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Loading songs...',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final song = topCharts[index];
-                        return _buildSongListTile(context, song, topCharts, theme, index + 1);
-                      },
-                      childCount: showAllTopCharts
-                          ? topCharts.length
-                          : (topCharts.length > 8 ? 8 : topCharts.length),
-                      ),
-                    ),
-
-              // --- Popular Artists Section ---
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Your Favorite Artists"),
-              ),
-              SliverToBoxAdapter(
-                child: dynamicPopularArtists.isEmpty 
-                  ? Container(
-                      padding: const EdgeInsets.all(32),
-                      child: Center(
-                        child: Text(
-                          "Follow your favorite artists to see them here!",
-                          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.5)),
-                        ),
-                      ),
-                    )
-                  : SizedBox(
-                  height: 140, // Height for avatar + text
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: dynamicPopularArtists.length,
-                    itemBuilder: (context, index) {
-                      final artist = dynamicPopularArtists[index];
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 16),
-                          width: 100,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundImage: NetworkImage(artist["image"] ?? ''),
-                                backgroundColor: Colors.grey[800],
-                                onBackgroundImageError: (e, s) =>
-                                    const Icon(Icons.person, color: Colors.white),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                artist["name"] ?? 'Unknown',
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Featured Playlists"),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                   height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: dynamicFeaturedPlaylists.length,
-                    itemBuilder: (context, index) {
-                      final playlist = dynamicFeaturedPlaylists[index];
-                      return _buildPlaylistCard(playlist);
-                    },
-                  ),
-                ),
-              ),
+              _buildTopGrid(context),
+              ..._buildDynamicShelves(context, theme),
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
@@ -842,6 +518,302 @@ class _HomeScreenState extends State<HomeScreen> {
     return "Good Evening";
   }
 
+  Widget _buildTopGrid(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Consumer2<MusicService, PlaylistService>(
+        builder: (context, musicService, playlistService, _) {
+          final List<_GridItem> gridItems = [];
+          
+          gridItems.add(_GridItem(
+            "Liked Songs",
+            "assets_or_placeholder",
+            () => Navigator.pushNamed(context, AppRoutes.likedSongs),
+          ));
+          
+          final seenTitles = <String>{};
+          
+          for (final contextItem in musicService.recentContexts) {
+            if (gridItems.length >= 6) break;
+            final title = contextItem['title'] ?? 'Unknown';
+            if (!seenTitles.contains(title)) {
+              seenTitles.add(title);
+              final bool isActive = musicService.recentContexts.isNotEmpty && 
+                                    musicService.recentContexts.first['title'] == title && 
+                                    musicService.isPlaying;
+
+              gridItems.add(_GridItem(
+                title,
+                contextItem['image'] ?? '',
+                () {
+                   final songListDyn = contextItem['songs'] as List?;
+                   if (songListDyn != null && songListDyn.isNotEmpty) {
+                      final songs = songListDyn.map((e) => SongModel.fromJson(Map<String, dynamic>.from(e))).toList();
+                      if (contextItem['type'] == 'album') {
+                          final virtualAlbum = AlbumModel(
+                             id: contextItem['id'] ?? '',
+                             name: title,
+                             imageUrl: contextItem['image'] ?? '',
+                             artist: 'Various Artists',
+                             year: '',
+                          );
+                          Navigator.pushNamed(context, AppRoutes.album, arguments: virtualAlbum);
+                      } else {
+                          final virtualPlaylist = Playlist(
+                              id: contextItem['id'] ?? '',
+                              name: title,
+                              songs: songs,
+                          );
+                          Navigator.pushNamed(context, AppRoutes.playlist, arguments: virtualPlaylist);
+                      }
+                   }
+                },
+                isActive: isActive,
+              ));
+            }
+          }
+
+          // Fallback to history loose songs if context is empty
+          if (gridItems.length < 6) {
+             final history = musicService.listeningHistory;
+             for (final song in history) {
+               if (gridItems.length >= 6) break;
+               final key = song.album.isNotEmpty && song.album != "Unknown Album" ? song.album : song.name;
+               if (!seenTitles.contains(key) && key.isNotEmpty) {
+                 seenTitles.add(key);
+                 final bool isActive = musicService.currentSong?.album == song.album && musicService.isPlaying;
+                 gridItems.add(_GridItem(
+                   key,
+                   song.imageUrl,
+                   () {
+                      final virtualAlbum = AlbumModel(
+                          id: song.albumId ?? '',
+                          name: song.album,
+                          imageUrl: song.imageUrl,
+                          artist: song.artist,
+                          year: '',
+                      );
+                      Navigator.pushNamed(context, AppRoutes.album, arguments: virtualAlbum);
+                   },
+                   isActive: isActive,
+                 ));
+               }
+             }
+          }
+
+          // User's custom playlists could go here in the future if available.
+          // Removed the generic featured playlists populator.
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: GridView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 3.0, 
+              ),
+              itemCount: gridItems.length,
+              itemBuilder: (context, index) {
+                final item = gridItems[index];
+                return GestureDetector(
+                  onTap: item.onTap,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    clipBehavior: Clip.hardEdge,
+                    child: Row(
+                      children: [
+                        Stack(
+                          children: [
+                            item.title == "Liked Songs"
+                              ? Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Color(0xFF450af5), Color(0xFFc4efd9)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  ),
+                                  child: const Icon(Icons.favorite, color: Colors.white, size: 28),
+                                )
+                              : Image.network(
+                                  item.imageUrl, 
+                                  width: 56, 
+                                  height: 56, 
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Container(width: 56, height: 56, color: Colors.grey[800]),
+                                ),
+                            if (item.isActive)
+                              Positioned.fill(
+                                child: Container(
+                                  color: Colors.black54,
+                                  child: const Center(
+                                    child: Icon(Icons.equalizer, color: Color(0xFFFF6600), size: 24),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 13,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }
+      ),
+    );
+  }
+
+  List<Widget> _buildDynamicShelves(BuildContext context, ThemeData theme) {
+    List<Widget> slivers = [];
+    
+    // 1. "More like [Last Listened Artist]" (Grouped into Albums/Playlists)
+    final history = Provider.of<MusicService>(context).listeningHistory;
+    String sectionTitle = "Recommended Albums";
+    List<SongModel> sourceSongs = recentlyPlayed;
+    
+    if (history.isNotEmpty) {
+      final lastArtist = history.first.artist;
+      final similar = recentlyPlayed.where((s) => s.artist.contains(lastArtist) || lastArtist.contains(s.artist)).toList();
+      if (similar.isNotEmpty) {
+        sectionTitle = "More like $lastArtist";
+        sourceSongs = similar;
+      }
+    }
+
+    final Map<String, List<SongModel>> albumGroups = {};
+    for (var song in sourceSongs) {
+      final key = song.album.isNotEmpty && song.album != "Unknown Album" ? song.album : "Singles by ${song.artist}";
+      albumGroups.putIfAbsent(key, () => []).add(song);
+    }
+    
+    final List<Map<String, dynamic>> recommendedAlbums = [];
+    for (var entry in albumGroups.entries) {
+      if (recommendedAlbums.length >= 8) break;
+      final id = 'album_${entry.key.replaceAll(' ', '_')}';
+      playlistSongsData[id] = entry.value; 
+      recommendedAlbums.add({
+        'id': id,
+        'title': entry.key,
+        'image': entry.value.first.imageUrl,
+        'songCount': entry.value.length.toString(),
+      });
+    }
+
+    if (recommendedAlbums.isNotEmpty) {
+      slivers.add(SliverToBoxAdapter(child: _buildSectionHeader(sectionTitle)));
+      slivers.add(
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: recommendedAlbums.length,
+              itemBuilder: (context, index) => _buildPlaylistCard(recommendedAlbums[index]),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 2. Popular Artists
+    if (dynamicPopularArtists.isNotEmpty) {
+      slivers.add(SliverToBoxAdapter(child: _buildSectionHeader("Your Favorite Artists")));
+      slivers.add(
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 140, // Height for avatar + text
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: dynamicPopularArtists.length,
+              itemBuilder: (context, index) {
+                final artist = dynamicPopularArtists[index];
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 16),
+                    width: 100,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 40,
+                          backgroundImage: NetworkImage(artist["image"] ?? ''),
+                          backgroundColor: Colors.grey[800],
+                          onBackgroundImageError: (e, s) =>
+                              const Icon(Icons.person, color: Colors.white),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          artist["name"] ?? 'Unknown',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. Playlists / Daily Mixes
+    if (dynamicFeaturedPlaylists.isNotEmpty) {
+      slivers.add(SliverToBoxAdapter(child: _buildSectionHeader("Made For You")));
+      slivers.add(
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: dynamicFeaturedPlaylists.length,
+              itemBuilder: (context, index) => _buildPlaylistCard(dynamicFeaturedPlaylists[index]),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return slivers;
+  }
+
   Widget _buildSectionHeader(
     String title, {
     VoidCallback? onSeeAll,
@@ -854,12 +826,16 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: theme.colorScheme.onSurface,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           if (showSeeAll)
@@ -875,168 +851,28 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSongCard(SongModel song) {
-    final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: () {
-        final index = recentlyPlayed.indexOf(song);
-        widget.onPlaySong(song, recentlyPlayed, index);
-      },
-      child: Container(
-        width: 150,
-        margin: const EdgeInsets.only(right: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    song.imageUrl,
-                    height: 120,
-                    width: 150,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 120,
-                        width: 150,
-                        color: Colors.grey[800],
-                        child: Icon(
-                          Icons.music_note,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                Consumer<MusicService>(
-                  builder: (context, musicService, child) {
-                    final bool isThisSongPlaying = musicService.currentSong?.id == song.id && musicService.isPlaying;
-                    return isThisSongPlaying
-                        ? Positioned(
-                            bottom: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFF6600),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.pause,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              song.name,
-              style: TextStyle(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              song.artist,
-              style: TextStyle(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                fontSize: 12,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSongListTile(BuildContext context, SongModel song, List<SongModel> playlist, ThemeData theme, int rank) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            song.imageUrl,
-            width: 50,
-            height: 50,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                Container(width: 50, height: 50, color: Colors.grey),
-          ),
-        ),
-        title: Consumer<MusicService>(
-          builder: (context, musicService, _) {
-            final bool isActive = musicService.isActive(song.id);
-            return Text(
-              song.name,
-              style: TextStyle(
-                color: isActive
-                    ? const Color(0xFFFF6600)
-                    : theme.colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            );
-          },
-        ),
-        subtitle: Text(
-          song.artist,
-          style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Consumer<PlaylistService>(
-              builder: (context, playlistService, _) {
-                if (playlistService.isLiked(song)) {
-                  return const Padding(
-                    padding: EdgeInsets.only(right: 8.0),
-                    child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 22),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            IconButton(
-              icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-              onPressed: () => _showMoreMenu(context, song),
-            ),
-          ],
-        ),
-        onTap: () {
-          final index = topCharts.indexOf(song);
-          widget.onPlaySong(song, topCharts, index);
-        },
-      ),
-    );
-  }
 
   Widget _buildPlaylistCard(
     Map<String, dynamic> playlist, {
     bool useMargin = true,
   }) {
     final theme = Theme.of(context);
+    final musicService = Provider.of<MusicService>(context);
+    final bool isActive = musicService.recentContexts.isNotEmpty &&
+                          musicService.recentContexts.first['id'] == playlist['id'] &&
+                          musicService.isPlaying;
+
     return GestureDetector(
       onTap: () {
         final songs = playlistSongsData[playlist['id']];
         if (songs != null && songs.isNotEmpty) {
-           widget.onPlaySong(songs[0], songs, 0);
-           showMusicToast(context, "Playing ${playlist['title']}", type: ToastType.success);
+           final virtualPlaylist = Playlist(
+               id: playlist['id'] ?? '',
+               name: playlist['title'] ?? 'Unknown',
+               songs: songs,
+           );
+           Navigator.pushNamed(context, AppRoutes.playlist, arguments: virtualPlaylist);
         } else {
            showMusicToast(context, "No songs in this playlist", type: ToastType.info);
         }
@@ -1047,16 +883,33 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                playlist["image"]!,
-                height: 120,
-                width: 160,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Container(height: 120, width: 160, color: Colors.grey),
-              ),
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    playlist["image"]!,
+                    height: 120,
+                    width: 160,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        Container(height: 120, width: 160, color: Colors.grey),
+                  ),
+                ),
+                if (isActive)
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFF6600),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.equalizer, color: Colors.white, size: 16),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -1271,3 +1124,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+class _GridItem {
+  final String title;
+  final String imageUrl;
+  final VoidCallback onTap;
+  final bool isActive;
+  _GridItem(this.title, this.imageUrl, this.onTap, {this.isActive = false});
+}
+

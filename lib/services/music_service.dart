@@ -19,6 +19,9 @@ class MusicService with ChangeNotifier {
 
   List<SongModel> _playlist = [];
   List<SongModel> _listeningHistory = []; 
+  
+  List<Map<String, dynamic>> _recentContexts = [];
+  List<Map<String, dynamic>> get recentContexts => _recentContexts;
 
   List<SongModel> get listeningHistory => _listeningHistory;
   
@@ -141,7 +144,34 @@ class MusicService with ChangeNotifier {
     _songMetadataCache = Map<String, Map<String, dynamic>>.from(
       json.decode(cacheJson).map((key, value) => MapEntry(key, Map<String, dynamic>.from(value)))
     );
+
+    final contextsJson = prefs.getString('recent_contexts');
+    if (contextsJson != null) {
+      try {
+        final List<dynamic> decoded = json.decode(contextsJson);
+        _recentContexts = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      } catch (e) {
+        debugPrint('Error loading recent contexts: $e');
+      }
+    }
     
+    notifyListeners();
+  }
+
+  void logPlayContext(String id, String type, String title, String imageUrl, List<SongModel> songs) {
+    if (songs.isEmpty) return;
+    _recentContexts.removeWhere((c) => c['id'] == id);
+    _recentContexts.insert(0, {
+      'id': id,
+      'type': type,
+      'title': title,
+      'image': imageUrl,
+      'songs': songs.map((s) => s.toJson()).toList(),
+    });
+    if (_recentContexts.length > 20) {
+      _recentContexts = _recentContexts.sublist(0, 20); // Keep up to 20 recent contexts
+    }
+    _saveStats();
     notifyListeners();
   }
 
@@ -150,6 +180,12 @@ class MusicService with ChangeNotifier {
     await prefs.setString('play_counts', json.encode(_playCounts));
     await prefs.setInt('total_listening_seconds', _totalListeningTime.inSeconds);
     await prefs.setString('song_metadata_cache', json.encode(_songMetadataCache));
+    
+    // Save history locally so it persists across hot restarts and app launches
+    final historyJsonList = _listeningHistory.map((s) => json.encode(s.toJson())).toList();
+    await prefs.setStringList('listening_history', historyJsonList);
+    
+    await prefs.setString('recent_contexts', json.encode(_recentContexts));
   }
 
   Future<void> _updateAccentColor(String? imageUrl) async {
@@ -299,6 +335,8 @@ class MusicService with ChangeNotifier {
   // logic could be moved to handler but sticking to simple delegation
   void toggleRepeat() {
     isRepeatNotifier.value = !isRepeatNotifier.value;
+    final newMode = isRepeatNotifier.value ? AudioServiceRepeatMode.one : AudioServiceRepeatMode.none;
+    _audioHandler.setRepeatMode(newMode);
   }
 
   void toggleShuffle() {

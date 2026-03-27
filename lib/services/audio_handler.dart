@@ -7,9 +7,31 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
   List<MediaItem> _queue = [];
   int _index = 0;
 
+  AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
+
   AudioPlayerHandler() {
+    _player.setAudioContext(
+      AudioContext(
+        android: const AudioContextAndroid(
+          isSpeakerphoneOn: false,
+          stayAwake: true,
+          contentType: AndroidContentType.music,
+          usageType: AndroidUsageType.media,
+          audioFocus: AndroidAudioFocus.gain,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: const {},
+        ),
+      ),
+    );
+
+    _player.setReleaseMode(ReleaseMode.stop);
+
     _player.onPlayerComplete.listen((_) {
-      skipToNext();
+      if (_repeatMode != AudioServiceRepeatMode.one) {
+        skipToNext();
+      }
     });
 
     _player.onPositionChanged.listen((position) {
@@ -24,9 +46,15 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     });
 
     _player.onPlayerStateChanged.listen((state) {
+      final playing = state == PlayerState.playing;
       playbackState.add(
         playbackState.value.copyWith(
-          playing: state == PlayerState.playing,
+          playing: playing,
+          controls: [
+            MediaControl.skipToPrevious,
+            playing ? MediaControl.pause : MediaControl.play,
+            MediaControl.skipToNext,
+          ],
           processingState: {
             PlayerState.stopped: AudioProcessingState.idle,
             PlayerState.playing: AudioProcessingState.ready,
@@ -37,6 +65,17 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         ),
       );
     });
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    _repeatMode = repeatMode;
+    playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
+    if (repeatMode == AudioServiceRepeatMode.one) {
+      await _player.setReleaseMode(ReleaseMode.loop);
+    } else {
+      await _player.setReleaseMode(ReleaseMode.stop);
+    }
   }
 
   @override
@@ -62,7 +101,6 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     mediaItem.add(item);
 
     try {
-      await _player.stop();
       final url = item.extras?['url'] as String?;
 
       if (url != null && url.isNotEmpty) {
@@ -77,12 +115,6 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
       playbackState.add(
         playbackState.value.copyWith(
           playing: true,
-          controls: [
-            MediaControl.skipToPrevious,
-            MediaControl.pause,
-            MediaControl.stop,
-            MediaControl.skipToNext,
-          ],
           systemActions: const {
             MediaAction.seek,
             MediaAction.seekForward,
@@ -101,6 +133,11 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> pause() => _player.pause();
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
+  }
 
   @override
   Future<void> stop() async {
@@ -123,8 +160,12 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
       _index++;
       await _playCurrent();
     } else {
-      // Loop back or stop? Let's stop for now, or loop if repeat is on (logic can be added)
-      await stop();
+      if (_repeatMode == AudioServiceRepeatMode.all) {
+        _index = 0;
+        await _playCurrent();
+      } else {
+        await stop();
+      }
     }
   }
 

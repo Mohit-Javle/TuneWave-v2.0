@@ -334,6 +334,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                          ),
                          onTap: () {
                             musicService.loadPlaylist(albumSongs, index);
+                            musicService.logPlayContext(widget.album.id, 'album', widget.album.name, widget.album.imageUrl, albumSongs);
                          },
                       );
                    },

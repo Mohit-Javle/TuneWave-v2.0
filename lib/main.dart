@@ -13,6 +13,7 @@ import 'package:clone_mp/screen/library_screen.dart';
 import 'package:clone_mp/screen/login_screen.dart';
 
 import 'package:clone_mp/screen/search_screen.dart';
+import 'package:clone_mp/screen/playlist_detail_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/screen/change_password_screen.dart';
 import 'package:clone_mp/screen/about_screen.dart';
@@ -232,6 +233,9 @@ class MyApp extends StatelessWidget {
             ),
             AppRoutes.album: (context) => AlbumDetailScreen(
               album: ModalRoute.of(context)!.settings.arguments as AlbumModel,
+            ),
+            AppRoutes.playlist: (context) => PlaylistDetailScreen(
+              playlist: ModalRoute.of(context)!.settings.arguments as Playlist,
             ),
           },
         );
