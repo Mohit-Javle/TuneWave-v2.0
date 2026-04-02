@@ -3,6 +3,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -19,13 +20,7 @@ class InviteFriendsScreen extends StatelessWidget {
   Future<void> _shareApp(BuildContext context) async {
     try {
       // Show loading toast
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Preparing APK for sharing... This might take a moment."),
-          duration: Duration(seconds: 2),
-          backgroundColor: primaryOrange,
-        ),
-      );
+      showMusicToast(context, "Preparing APK for sharing...", type: ToastType.info);
 
       final String? originalApkPath = await _channel.invokeMethod<String>('getApkPath');
       
@@ -53,12 +48,7 @@ class InviteFriendsScreen extends StatelessWidget {
       debugPrint("Error sharing APK: $e");
       
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Sharing failed: ${e.toString().split(':').last.trim()}"),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showMusicToast(context, "Sharing failed: ${e.toString().split(':').last.trim()}", type: ToastType.error);
       }
 
       // Fallback: Share link if file sharing fails
@@ -198,12 +188,7 @@ class InviteFriendsScreen extends StatelessWidget {
                             Clipboard.setData(
                               const ClipboardData(text: inviteLink),
                             );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Link copied!'),
-                                backgroundColor: primaryOrange,
-                              ),
-                            );
+                            showMusicToast(context, 'Link copied!', type: ToastType.success);
                           },
                           icon: const Icon(Icons.copy, size: 14),
                           label: const Text('Copy', style: TextStyle(fontSize: 12)),
@@ -261,12 +246,7 @@ class InviteFriendsScreen extends StatelessWidget {
       subtitle: Text(handle, style: TextStyle(color: textLight)),
       trailing: OutlinedButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Invite sent to $name!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          showMusicToast(context, 'Invite sent to $name!', type: ToastType.success);
         },
         style: OutlinedButton.styleFrom(
           foregroundColor: primaryOrange,

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:clone_mp/models/song_model.dart';
 import 'package:clone_mp/services/api_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -67,6 +68,7 @@ class _AddSongsScreenState extends State<AddSongsScreen> {
           _searchResults = [];
           _isLoading = false;
         });
+        showMusicToast(context, "Error searching songs: $e", type: ToastType.error);
       }
     }
   }
@@ -103,12 +105,7 @@ class _AddSongsScreenState extends State<AddSongsScreen> {
     playlistService.addSongsToPlaylist(widget.playlist.id, _selectedSongs);
 
     Navigator.pop(context); 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("${_selectedSongs.length} song(s) added."),
-        backgroundColor: const Color(0xFFFF6600),
-      ),
-    );
+    showMusicToast(context, "${_selectedSongs.length} song(s) added.", type: ToastType.success);
   }
 
   @override

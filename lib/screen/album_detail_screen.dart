@@ -6,6 +6,7 @@ import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:clone_mp/widgets/music_toast.dart';
+import 'package:clone_mp/widgets/song_info_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -102,12 +103,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.playlist_add_rounded, color: Color(0xFFFF6600)),
-                    title: const Text("Add to Queue"),
+                    leading: const Icon(Icons.queue_play_next_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Play Next"),
                     onTap: () {
-                      musicService.addToQueue(song);
+                      musicService.addToPlayNext(song);
                       Navigator.pop(context);
-                      showMusicToast(context, "Added to queue", type: ToastType.success);
+                      showMusicToast(context, "Playing next: ${song.name}", type: ToastType.success);
                     },
                   ),
                   ListTile(
@@ -151,40 +152,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   void _showSongDetails(BuildContext context, SongModel song) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Song Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Title: ${song.name}"),
-            const SizedBox(height: 8),
-            Text("Artist: ${song.artist}"),
-            const SizedBox(height: 8),
-            Text("Album: ${song.album}"),
-            if (song.duration != null) ...[
-              const SizedBox(height: 8),
-              Text("Duration: ${_formatDuration(song.duration)}"),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-        ],
-      ),
-    );
+    SongInfoDialog.show(context, song);
   }
 
-  String _formatDuration(String? dur) {
-    if (dur == null || dur.isEmpty) return "";
-    final totalSec = int.tryParse(dur) ?? 0;
-    if (totalSec == 0) return "";
-    final m = totalSec ~/ 60;
-    final s = totalSec % 60;
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
+
 
   @override
   Widget build(BuildContext context) {

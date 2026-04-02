@@ -7,7 +7,8 @@ import 'package:clone_mp/services/playlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/screen/add_songs_screen.dart';
-import 'package:clone_mp/widgets/download_button.dart';
+import 'package:clone_mp/services/download_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:clone_mp/widgets/falling_item.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
@@ -58,36 +59,100 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   // Method to show options for a song
   void _showSongOptions(SongModel song) {
-    final playlistService = Provider.of<PlaylistService>(
-      context,
-      listen: false,
-    );
+    final playlistService = Provider.of<PlaylistService>(context, listen: false);
+    final downloadService = Provider.of<DownloadService>(context, listen: false);
+    final uiStateService = Provider.of<UiStateService>(context, listen: false);
+    final musicService = Provider.of<MusicService>(context, listen: false);
+    final isDownloaded = downloadService.isSongDownloaded(song.id);
+    
+    // Hide mini player when modal opens to prevent overlap
+    uiStateService.setModalActive(true);
+
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: Icon(
-                Icons.remove_circle_outline,
-                color: Colors.red[400],
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Play Next Option
+              ListTile(
+                leading: const Icon(
+                  Icons.queue_play_next_rounded,
+                  color: Color(0xFFFF6600),
+                ),
+                title: const Text('Play Next'),
+                onTap: () {
+                  musicService.addToPlayNext(song);
+                  Navigator.pop(context);
+                },
               ),
-              title: Text(
-                'Remove from this playlist',
-                style: TextStyle(color: Colors.red[400]),
+
+              // Download Option
+              ListTile(
+                leading: Icon(
+                  isDownloaded ? Icons.delete_outline : Icons.download_outlined,
+                  color: isDownloaded ? Colors.red : const Color(0xFFFF6600),
+                ),
+                title: Text(isDownloaded ? 'Delete Download' : 'Download'),
+                onTap: () async {
+                  Navigator.pop(context); // Close sheet first
+                  if (isDownloaded) {
+                    // Delete logic
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Download'),
+                        content: Text('Are you sure you want to delete "${song.name}"?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true) {
+                      await downloadService.deleteSong(song.id);
+                    }
+                  } else {
+                    // Download logic
+                    await downloadService.downloadSong(song);
+                  }
+                },
               ),
-              onTap: () {
-                playlistService.removeSongFromPlaylist(
-                  widget.playlist.id,
-                  song.id,
-                );
-                Navigator.pop(context);
-              },
-            ),
-          ],
+              
+              // Remove from Playlist Option
+              ListTile(
+                leading: const Icon(
+                  Icons.remove_circle_outline,
+                  color: Colors.grey,
+                ),
+                title: const Text('Remove from playlist'),
+                onTap: () {
+                  playlistService.removeSongFromPlaylist(
+                    widget.playlist.id,
+                    song.id,
+                  );
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
         );
       },
-    );
+    ).then((_) {
+      // Show mini player back when modal is dismissed
+      uiStateService.setModalActive(false);
+    });
   }
 
   @override
@@ -350,18 +415,9 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ),
       ),
       subtitle: Text(song.artist),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isStatic)
-            const Icon(Icons.download_done, size: 24, color: Colors.grey)
-          else
-            DownloadButton(song: song),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: isStatic ? null : () => _showSongOptions(song),
-          ),
-        ],
+      trailing: IconButton(
+        icon: const Icon(Icons.more_vert),
+        onPressed: isStatic ? null : () => _showSongOptions(song),
       ),
       onTap: isStatic ? null : () {
         musicService.loadPlaylist(playlistSongs, index);

@@ -27,9 +27,11 @@ class MigrationService {
         .doc('data')
         .get();
 
-      if (profileDoc.data()?['migrationCompleted'] == true) return;
+      // NOTE: We've temporarily disabled the early return to force a full re-sync 
+      // of all 84 items and legacy data into Firestore.
+      // if (profileDoc.data()?['migrationCompleted'] == true) return;
 
-      debugPrint('MIGRATION: Starting migration for $email');
+      debugPrint('MIGRATION: Starting Forced Sync for $email...');
 
       // Run migration for user-scoped data only
       await _migrateLikedSongs(email);
@@ -56,29 +58,55 @@ class MigrationService {
   /// Key: 'liked_songs_$email' → Firestore: users/{email}/likedSongs/{songId}
   Future<void> _migrateLikedSongs(String email) async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('liked_songs_$email');
-    if (raw == null) return;
+    
+    // Check both legacy key and user-scoped key
+    final String? rawLegacy = prefs.getString('liked_songs');
+    final String? rawUser = prefs.getString('liked_songs_$email');
+    
+    if (rawLegacy == null && rawUser == null) return;
 
-    final List<dynamic> songs = jsonDecode(raw);
-    if (songs.isEmpty) return;
+    List<dynamic> allSongs = [];
+    if (rawLegacy != null) {
+      allSongs.addAll(jsonDecode(rawLegacy));
+      debugPrint('MIGRATION: Found ${jsonDecode(rawLegacy).length} legacy liked songs');
+    }
+    if (rawUser != null) {
+      allSongs.addAll(jsonDecode(rawUser));
+      debugPrint('MIGRATION: Found ${jsonDecode(rawUser).length} user-scoped liked songs');
+    }
 
-    debugPrint('MIGRATION: Migrating ${songs.length} liked songs');
+    if (allSongs.isEmpty) return;
+
+    // Deduplicate by ID
+    final uniqueSongsMap = <String, dynamic>{};
+    for (var s in allSongs) {
+      if (s['id'] != null) uniqueSongsMap[s['id'].toString()] = s;
+    }
+    final uniqueSongs = uniqueSongsMap.values.toList();
+
+    debugPrint('MIGRATION: Syncing ${uniqueSongs.length} unique liked songs to Firestore for $email...');
 
     final batch = FirebaseFirestore.instance.batch();
 
-    for (final song in songs) {
+    for (final song in uniqueSongs) {
+      final String songId = song['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString();
+      // We use the same doc ID pattern we now use in PlaylistService for consistency
+      final String docId = "${DateTime.now().millisecondsSinceEpoch}_$songId";
+      
       final ref = FirebaseFirestore.instance
         .collection('users')
         .doc(email)
         .collection('likedSongs')
-        .doc(song['id']?.toString() ??
-          DateTime.now().millisecondsSinceEpoch.toString());
+        .doc(docId);
+
       batch.set(ref, {
         ...Map<String, dynamic>.from(song),
         'likedAt': FieldValue.serverTimestamp(),
-      });
+        'sortId': DateTime.now().millisecondsSinceEpoch,
+      }, SetOptions(merge: true));
     }
     await batch.commit();
+    debugPrint('MIGRATION: Liked songs sync SUCCESS ✅');
   }
 
   /// Migrates playlists from SharedPreferences to Firestore.

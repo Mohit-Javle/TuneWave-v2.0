@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'dart:math' as math;
 import 'package:clone_mp/widgets/music_toast.dart';
+import 'package:clone_mp/widgets/song_info_dialog.dart';
 import 'package:provider/provider.dart';
 
 // Define a custom PopupMenuEntry for better styling
@@ -189,8 +190,20 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
             child: PopupMenuButton<String>(
               onSelected: (String result) {
                 if (result == 'about_artist') {
-                  // Simplified artist interaction for now
-                  showMusicToast(context, 'Artist details coming soon!', type: ToastType.info);
+                  final artistId = currentSong.artistId;
+                  if (artistId != null && artistId.isNotEmpty) {
+                    Navigator.pushNamed(
+                      context, 
+                      AppRoutes.artist, 
+                      arguments: {
+                        'id': artistId,
+                        'name': currentSong.artist,
+                        'image': '', // Don't pass song image for artist profile
+                      },
+                    );
+                  } else {
+                    showMusicToast(context, 'Artist details unavailable', type: ToastType.error);
+                  }
                 } else if (result == 'about_song') {
                   _showSongDetailsDialog(context, currentSong);
                 } else if (result == 'add_to_playlist') {
@@ -430,6 +443,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     final effectiveAccentColor = accentColor ?? primaryOrange;
     return Column(
       children: [
+        const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
@@ -448,15 +462,18 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                         children: [
                           SliderTheme(
                             data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: effectiveAccentColor,
-                              inactiveTrackColor:
-                                  theme.brightness == Brightness.light
-                                  ? effectiveAccentColor.withOpacity(0.3)
-                                  : Colors.white30,
-                              thumbColor: effectiveAccentColor,
+                              activeTrackColor: effectiveAccentColor.computeLuminance() < 0.2 
+                                  ? Color.alphaBlend(effectiveAccentColor.withOpacity(0.5), Colors.white70)
+                                  : effectiveAccentColor,
+                              inactiveTrackColor: Colors.white.withOpacity(0.15),
+                              thumbColor: Colors.white, // Always white thumb for maximum contrast
                               overlayColor: effectiveAccentColor.withOpacity(0.2),
+                              trackHeight: 4,
                               thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 6,
+                                enabledThumbRadius: 7,
+                              ),
+                              overlayShape: const RoundSliderOverlayShape(
+                                overlayRadius: 15,
                               ),
                             ),
                             child: Slider(
@@ -602,53 +619,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
   }
 
   void _showSongDetailsDialog(BuildContext context, SongModel song) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        final theme = Theme.of(context);
-        return AlertDialog(
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
-          title: Text(
-            "About This Song",
-            style: TextStyle(color: primaryOrange, fontWeight: FontWeight.bold),
-          ),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                Text(
-                  "Title: ${song.name}",
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Artist: ${song.artist}",
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Album: ${song.album}",
-                  style: TextStyle(color: theme.colorScheme.onSurface),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                "Close",
-                style: TextStyle(color: primaryOrange),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    SongInfoDialog.show(context, song);
   }
 
   void _showAddToPlaylistOptions(BuildContext context, SongModel song) {

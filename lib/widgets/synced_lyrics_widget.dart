@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -188,25 +187,39 @@ class _SyncedLyricsWidgetState extends State<SyncedLyricsWidget> {
       );
     }
 
-    return Container(
-      height: 400,
-      decoration: BoxDecoration(
-         borderRadius: BorderRadius.circular(16),
-         image: DecorationImage(
-           image: NetworkImage(widget.song.imageUrl),
-           fit: BoxFit.cover,
-         ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-             color: Colors.black.withValues(alpha: 0.4),
-             child: _syncedLines.isNotEmpty ? _buildSyncedView() : _buildPlainView(),
+    final musicService = context.read<MusicService>();
+
+    return ValueListenableBuilder<Color?>(
+      valueListenable: musicService.currentAccentColorNotifier,
+      builder: (context, accentColor, _) {
+        final baseColor = accentColor ?? const Color(0xFFFF6600);
+        
+        return Container(
+          height: 400,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A), // Deep clean charcoal
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                baseColor.withValues(alpha: 0.15), // Very subtle accent glow
+                const Color(0xFF121212),          // Deep black/grey
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: baseColor.withValues(alpha: 0.1),
+                blurRadius: 20,
+                spreadRadius: -10,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ),
-      ),
+          clipBehavior: Clip.antiAlias,
+          child: _syncedLines.isNotEmpty ? _buildSyncedView() : _buildPlainView(),
+        );
+      },
     );
   }
 

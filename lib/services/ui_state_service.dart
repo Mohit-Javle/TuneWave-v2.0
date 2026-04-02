@@ -5,9 +5,23 @@ import 'package:flutter/material.dart';
 /// A service to manage UI state, like the visibility of the mini-player.
 /// This uses a ChangeNotifier to notify listeners of state changes.
 class UiStateService with ChangeNotifier {
-  bool _isForcedHidden = false;
+  bool _isForcedHidden = true;
   int _activeModalsCount = 0;
   double _miniPlayerPadding = 0.0;
+  bool _isGlobalLocked = true; // Started as locked
+  bool _isAppInitialized = false;
+  int _currentTabIndex = 0;
+
+  bool get isAppInitialized => _isAppInitialized;
+  bool get isGlobalLocked => _isGlobalLocked;
+  int get currentTabIndex => _currentTabIndex;
+
+  void setTabIndex(int index) {
+    if (_currentTabIndex != index) {
+      _currentTabIndex = index;
+      notifyListeners();
+    }
+  }
 
   bool get isMiniPlayerVisible => !_isForcedHidden && _activeModalsCount == 0;
   bool get isModalActive => _activeModalsCount > 0;
@@ -43,5 +57,24 @@ class UiStateService with ChangeNotifier {
       _isForcedHidden = false;
       notifyListeners();
     }
+  }
+
+  void setAppInitialized(bool value) {
+    if (_isAppInitialized != value) {
+      _isAppInitialized = value;
+      notifyListeners();
+    }
+  }
+
+  void unlockMiniPlayer() {
+    _isGlobalLocked = false;
+    _isForcedHidden = false; // Also ensure it's not forced hidden
+    notifyListeners();
+  }
+
+  void lockMiniPlayer() {
+    _isGlobalLocked = true;
+    _isForcedHidden = true;
+    notifyListeners();
   }
 }

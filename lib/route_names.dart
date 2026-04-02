@@ -13,6 +13,7 @@ class AppRoutes {
   static const String queue = '/queue';
   static const String recentlyPlayed = '/recently_played';
   static const String downloads = '/downloads';
+  static const String followingArtists = '/following_artists';
   static const String artist = '/artist';
   static const String album = '/album';
   static const String player = '/player';

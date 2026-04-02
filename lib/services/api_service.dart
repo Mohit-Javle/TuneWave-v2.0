@@ -58,6 +58,32 @@ class ApiService {
     }
   }
 
+  // Get song details (metadata and fresh URL)
+  Future<SongModel?> getSongDetails(String songId) async {
+    try {
+      final uri = Uri.parse(
+          '$baseUrl?__call=song.getDetails&pids=$songId&_format=json&_marker=0&api_version=4&ctx=web6dot0');
+      
+      final response = await http.get(uri, headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" 
+      });
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is Map && data.containsKey(songId)) {
+          final item = data[songId];
+          String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
+          String decryptedUrl = _decryptUrl(encryptedUrl);
+          return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint("Error fetching song details: $e");
+      return null;
+    }
+  }
+
   // GetLyrics (Official API)
   Future<String> getLyrics(String songId) async {
     try {
@@ -206,6 +232,76 @@ class ApiService {
        return [];
     } catch (e) {
       debugPrint("Error fetching album details: $e");
+      return [];
+    }
+  }
+
+  // Get suggested songs (recommendations)
+  Future<List<SongModel>> getSuggestedSongs(String songId) async {
+    try {
+      // Try multiple recommender endpoints for maximum reliability
+      final endpoints = [
+        '$baseUrl?__call=recommender.getSuggestedSongs&_format=json&_marker=0&api_version=4&ctx=web6dot0&pid=$songId',
+        '$baseUrl?__call=helper.getSuggestedSongs&_format=json&_marker=0&api_version=4&ctx=web6dot0&pids=$songId',
+      ];
+      
+      for (var url in endpoints) {
+        final uri = Uri.parse(url);
+        debugPrint("ApiService fetching recommendations from: $url");
+
+        final response = await http.get(uri, headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" 
+        });
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          List? results;
+          if (data is List) {
+            results = data;
+          } else if (data is Map && data.containsKey('songs')) {
+            results = data['songs'] as List?;
+          }
+
+          if (results != null && results.isNotEmpty) {
+            return results.map((item) {
+              String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
+              String decryptedUrl = _decryptUrl(encryptedUrl);
+              return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
+            }).toList();
+          }
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error fetching suggested songs: $e");
+      return [];
+    }
+  }
+
+  // Get songs by genre and language (for better Autoplay)
+  Future<List<SongModel>> getSongsByGenre(String? genre, String? language) async {
+    try {
+      final query = "${genre ?? ''} ${language ?? ''} hits".trim();
+      if (query.isEmpty) return [];
+
+      final uri = Uri.parse(
+          '$baseUrl?__call=search.getResults&p=1&q=$query&_format=json&_marker=0&api_version=4&ctx=web6dot0');
+      
+      final response = await http.get(uri);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['results'] != null) {
+          final List results = data['results'];
+          return results.map((item) {
+            String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
+            String decryptedUrl = _decryptUrl(encryptedUrl);
+            return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
+          }).toList();
+        }
+      }
+      return [];
+    } catch (e) {
+      debugPrint("Error fetching songs by genre: $e");
       return [];
     }
   }

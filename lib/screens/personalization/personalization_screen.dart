@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/auth_service.dart';
 import 'package:clone_mp/route_names.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:clone_mp/screens/personalization/widgets/genre_selection_widget.dart';
 import 'package:clone_mp/screens/personalization/widgets/artist_selection_widget.dart';
 import 'package:clone_mp/screens/personalization/widgets/mood_selection_widget.dart';
@@ -86,12 +87,7 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
       // Handle error immediately if save fails
       debugPrint("Error saving personalization: $e");
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Error saving choices: $e"),
-            backgroundColor: Colors.red,
-          ),
-        );
+        showMusicToast(context, "Error saving choices: $e", type: ToastType.error);
         // Optionally go back to previous page? 
         // For now, staying on Done page with error is okay, 
         // or we could go back to the previous step.

@@ -368,7 +368,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           await musicService.pause();
                           await musicService.clearQueue();
                           
-                          Provider.of<UiStateService>(context, listen: false).hideMiniPlayer();
+                          final uiStateService = Provider.of<UiStateService>(context, listen: false);
+                          uiStateService.lockMiniPlayer();
+                          uiStateService.setAppInitialized(false);
                           
                           Navigator.pushNamedAndRemoveUntil(
                             context,
@@ -524,13 +526,18 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, musicService, playlistService, _) {
           final List<_GridItem> gridItems = [];
           
+          final bool isLikedSongsActive = musicService.recentContexts.isNotEmpty &&
+                      musicService.recentContexts.first['title'] == "Liked Songs" &&
+                      musicService.isPlaying;
+
           gridItems.add(_GridItem(
             "Liked Songs",
             "assets_or_placeholder",
             () => Navigator.pushNamed(context, AppRoutes.likedSongs),
+            isActive: isLikedSongsActive,
           ));
           
-          final seenTitles = <String>{};
+          final seenTitles = <String>{"Liked Songs"};
           
           for (final contextItem in musicService.recentContexts) {
             if (gridItems.length >= 6) break;
@@ -572,33 +579,8 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
 
-          // Fallback to history loose songs if context is empty
-          if (gridItems.length < 6) {
-             final history = musicService.listeningHistory;
-             for (final song in history) {
-               if (gridItems.length >= 6) break;
-               final key = song.album.isNotEmpty && song.album != "Unknown Album" ? song.album : song.name;
-               if (!seenTitles.contains(key) && key.isNotEmpty) {
-                 seenTitles.add(key);
-                 final bool isActive = musicService.currentSong?.album == song.album && musicService.isPlaying;
-                 gridItems.add(_GridItem(
-                   key,
-                   song.imageUrl,
-                   () {
-                      final virtualAlbum = AlbumModel(
-                          id: song.albumId ?? '',
-                          name: song.album,
-                          imageUrl: song.imageUrl,
-                          artist: song.artist,
-                          year: '',
-                      );
-                      Navigator.pushNamed(context, AppRoutes.album, arguments: virtualAlbum);
-                   },
-                   isActive: isActive,
-                 ));
-               }
-             }
-          }
+          // History fallback removed: prevents unassociated album instances from polluting the grid
+          // when playing from playlists.
 
           // User's custom playlists could go here in the future if available.
           // Removed the generic featured playlists populator.

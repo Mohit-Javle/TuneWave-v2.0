@@ -27,6 +27,12 @@ class GlobalMiniPlayer extends StatefulWidget {
 
 class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
   bool _shouldHideMiniPlayer(String? route) {
+    // Hide mini player if we don't know the route yet (startup)
+    // or if we are on splash/root/login screens.
+    if (route == null || route == AppRoutes.splash || route == AppRoutes.root || route == AppRoutes.login) {
+      return true;
+    }
+
     const hiddenRoutes = [
       AppRoutes.settings,
       AppRoutes.profile,
@@ -34,15 +40,19 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
       AppRoutes.inviteFriends,
       AppRoutes.changePassword,
       AppRoutes.personalization,
-      AppRoutes.login,
     ];
     return hiddenRoutes.contains(route);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get UiStateService for drawer state
+    // Get UiStateService for drawer and lock state
     final uiStateService = context.watch<UiStateService>();
+    
+    // Brute force check: If global lock is on, just return the child immediately.
+    if (uiStateService.isGlobalLocked) {
+      return widget.child;
+    }
     
     return ValueListenableBuilder<SongModel?>(
       valueListenable: widget.musicService.currentSongNotifier,
@@ -59,9 +69,11 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                 // Show mini player when:
                 // 1. There's a song playing
                 // 2. We're not on the player screen
-                // 3. The drawer is not open (uiStateService.isMiniPlayerVisible)
-                // 4. Not on drawer preference screens
+                // 3. The app is fully initialized and reached home screen
+                // 4. The drawer is not open (uiStateService.isMiniPlayerVisible)
+                // 5. Not on drawer preference screens
                 final showMiniPlayer = currentSong != null && 
+                                       uiStateService.isAppInitialized &&
                                        !isOnPlayerScreen && 
                                        !_shouldHideMiniPlayer(currentRoute) &&
                                        uiStateService.isMiniPlayerVisible;
@@ -119,7 +131,8 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
     }
 
     if (route == AppRoutes.main || route == AppRoutes.root) {
-      return 80.0;
+      // kBottomNavigationBarHeight is usually 56.0, plus the safe area bottom padding
+      return kBottomNavigationBarHeight + MediaQuery.of(context).padding.bottom;
     }
     return 0.0;
   }

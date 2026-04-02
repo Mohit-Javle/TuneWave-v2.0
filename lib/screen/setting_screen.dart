@@ -93,7 +93,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   await musicService.clearQueue();
                   if (!context.mounted) return;
                   
-                  Provider.of<UiStateService>(context, listen: false).hideMiniPlayer();
+                  final uiStateService = Provider.of<UiStateService>(context, listen: false);
+                  uiStateService.lockMiniPlayer();
+                  uiStateService.setAppInitialized(false);
                   
                   // Reset theme to light or keep? Let's keep as is or reset.
                   // Provider.of<ThemeNotifier>(context, listen: false).setTheme(ThemeMode.light);

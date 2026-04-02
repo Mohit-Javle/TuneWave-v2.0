@@ -8,6 +8,7 @@ import 'package:clone_mp/services/follow_service.dart';
 import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:clone_mp/widgets/music_toast.dart';
+import 'package:clone_mp/widgets/song_info_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
@@ -221,12 +222,12 @@ class _SearchScreenState extends State<SearchScreen> {
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.playlist_add_rounded, color: Color(0xFFFF6600)),
-                    title: const Text("Add to Queue"),
+                    leading: const Icon(Icons.queue_play_next_rounded, color: Color(0xFFFF6600)),
+                    title: const Text("Play Next"),
                     onTap: () {
-                      musicService.addToQueue(song);
+                      musicService.addToPlayNext(song);
                       Navigator.pop(context);
-                      showMusicToast(context, "Added to queue", type: ToastType.success);
+                      showMusicToast(context, "Playing next: ${song.name}", type: ToastType.success);
                     },
                   ),
                   ListTile(
@@ -275,40 +276,10 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _showSongDetails(BuildContext context, SongModel song) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Song Details"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Title: ${song.name}"),
-            const SizedBox(height: 8),
-            Text("Artist: ${song.artist}"),
-            const SizedBox(height: 8),
-            Text("Album: ${song.album}"),
-            if (song.duration != null) ...[
-              const SizedBox(height: 8),
-              Text("Duration: ${_formatDuration(song.duration)}"),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Close")),
-        ],
-      ),
-    );
+    SongInfoDialog.show(context, song);
   }
 
-  String _formatDuration(String? dur) {
-    if (dur == null || dur.isEmpty) return "";
-    final totalSec = int.tryParse(dur) ?? 0;
-    if (totalSec == 0) return "";
-    final m = totalSec ~/ 60;
-    final s = totalSec % 60;
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -557,9 +528,9 @@ class _SearchScreenState extends State<SearchScreen> {
                               key: Key('search_${song.id}'),
                               confirmDismiss: (direction) async {
                                 if (direction == DismissDirection.startToEnd) {
-                                  // Swipe Left-to-Right: Add to Queue
-                                  context.read<MusicService>().addToQueue(song);
-                                  showMusicToast(context, '${song.name} added to queue', type: ToastType.success);
+                                  // Swipe Left-to-Right: Play Next
+                                  context.read<MusicService>().addToPlayNext(song);
+                                  showMusicToast(context, 'Playing next: ${song.name}', type: ToastType.success);
                                 } else if (direction == DismissDirection.endToStart) {
                                   // Swipe Right-to-Left: Toggle Like
                                   await context.read<PlaylistService>().toggleLike(song);
@@ -581,9 +552,9 @@ class _SearchScreenState extends State<SearchScreen> {
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.queue_music, color: Colors.white),
+                                    Icon(Icons.queue_play_next_rounded, color: Colors.white),
                                     SizedBox(width: 8),
-                                    Text('Queue', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    Text('Play Next', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
@@ -600,65 +571,66 @@ class _SearchScreenState extends State<SearchScreen> {
                                   ],
                                 ),
                               ),
-                                child: ListTile(
-                                  leading: ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Image.network(
-                                      song.imageUrl,
-                                      width: 50,
-                                      height: 50,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          Container(color: Colors.grey, width: 50, height: 50),
-                                    ),
+                              child: ListTile(
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(
+                                    song.imageUrl,
+                                    width: 50,
+                                    height: 50,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        Container(color: Colors.grey, width: 50, height: 50),
                                   ),
-                                  title: Consumer<MusicService>(
-                                    builder: (context, musicService, _) {
-                                      final bool isActive = musicService.isActive(song.id);
-                                      return Text(
-                                        song.name,
-                                        style: TextStyle(
-                                          color: isActive
-                                              ? const Color(0xFFFF6600)
-                                              : theme.colorScheme.onSurface,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      );
-                                    },
-                                  ),
-                                  subtitle: Text(
-                                    song.artist,
-                                    style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Consumer<PlaylistService>(
-                                        builder: (context, playlistService, _) {
-                                          if (playlistService.isLiked(song)) {
-                                            return const Padding(
-                                              padding: EdgeInsets.only(right: 8.0),
-                                              child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 22),
-                                            );
-                                          }
-                                          return const SizedBox.shrink();
-                                        },
+                                ),
+                                title: Consumer<MusicService>(
+                                  builder: (context, musicService, _) {
+                                    final bool isActive = musicService.isActive(song.id);
+                                    return Text(
+                                      song.name,
+                                      style: TextStyle(
+                                        color: isActive
+                                            ? const Color(0xFFFF6600)
+                                            : theme.colorScheme.onSurface,
                                       ),
-                                      IconButton(
-                                        icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
-                                        onPressed: () => _showMoreMenu(context, song),
-                                      ),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    _addToHistory(song, 'song');
-                                    final index = _songResults.indexOf(song);
-                                    widget.onPlaySong(song, _songResults, index);
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    );
                                   },
                                 ),
+                                subtitle: Text(
+                                  song.artist,
+                                  style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Consumer<PlaylistService>(
+                                      builder: (context, playlistService, _) {
+                                        if (playlistService.isLiked(song)) {
+                                          return const Padding(
+                                            padding: EdgeInsets.only(right: 8.0),
+                                            child: Icon(Icons.favorite, color: Color(0xFFFF6600), size: 22),
+                                          );
+                                        }
+                                        return const SizedBox.shrink();
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.more_vert, color: theme.colorScheme.onSurface.withValues(alpha: 0.6)),
+                                      onPressed: () => _showMoreMenu(context, song),
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  _addToHistory(song, 'song');
+                                  // Pass only the selected song to keep the queue clean
+                                  // Smart Autoplay will handle the rest when the song ends
+                                  widget.onPlaySong(song, [song], 0);
+                                },
+                              ),
                             );
                           },
                           childCount: _songResults.length,

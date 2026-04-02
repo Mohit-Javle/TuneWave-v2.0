@@ -6,6 +6,7 @@ import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:clone_mp/widgets/falling_item.dart';
 
 class LikedSongsScreen extends StatelessWidget {
@@ -56,6 +57,7 @@ class LikedSongsScreen extends StatelessWidget {
                       : () {
                           final shuffledList = List<SongModel>.from(likedSongs)
                             ..shuffle();
+                          musicService.logPlayContext('liked_songs', 'playlist', 'Liked Songs', likedSongs.isNotEmpty ? likedSongs.first.imageUrl : '', shuffledList);
                           musicService.loadPlaylist(shuffledList, 0);
                         },
                 ),
@@ -70,6 +72,7 @@ class LikedSongsScreen extends StatelessWidget {
                     onPressed: likedSongs.isEmpty
                         ? null
                         : () {
+                            musicService.logPlayContext('liked_songs', 'playlist', 'Liked Songs', likedSongs.isNotEmpty ? likedSongs.first.imageUrl : '', likedSongs);
                             musicService.loadPlaylist(likedSongs, 0);
                           },
                   ),
@@ -104,15 +107,9 @@ class LikedSongsScreen extends StatelessWidget {
                     direction: DismissDirection.horizontal,
                     confirmDismiss: (direction) async {
                       if (direction == DismissDirection.startToEnd) {
-                        // Swipe right - Add to queue
-                        musicService.addToQueue(song);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('${song.name} added to queue'),
-                            backgroundColor: primaryOrange,
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                        // Swipe right - Play Next
+                        musicService.addToPlayNext(song);
+                        showMusicToast(context, 'Playing next: ${song.name}', type: ToastType.success);
                         return false; // Don't dismiss
                       } else if (direction == DismissDirection.endToStart) {
                         // Capture position while the widget is still in the tree for falling animation
@@ -147,10 +144,10 @@ class LikedSongsScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: const Row(
                         children: [
-                          Icon(Icons.queue_music, color: Colors.white, size: 30),
+                          Icon(Icons.queue_play_next_rounded, color: Colors.white, size: 30),
                           SizedBox(width: 8),
                           Text(
-                            'Add to Queue',
+                            'Play Next',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -248,6 +245,7 @@ class LikedSongsScreen extends StatelessWidget {
         },
       ),
       onTap: isStatic ? null : () {
+        musicService.logPlayContext('liked_songs', 'playlist', 'Liked Songs', likedSongs.isNotEmpty ? likedSongs.first.imageUrl : '', likedSongs);
         musicService.loadPlaylist(likedSongs, index);
       },
     );

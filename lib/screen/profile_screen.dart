@@ -11,6 +11,8 @@ import 'package:clone_mp/models/user_model.dart';
 import 'package:provider/provider.dart';
 import 'package:clone_mp/services/playlist_service.dart';
 import 'package:clone_mp/services/follow_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
+import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/screen/listening_history_screen.dart';
 import 'package:clone_mp/screen/music_dna_screen.dart';
 import 'package:image_picker/image_picker.dart';
@@ -362,16 +364,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           _buildStatColumn(
                             'Playlists',
                             playlistService.playlists.length.toString(),
+                            onTap: () {
+                              Provider.of<UiStateService>(context, listen: false).setTabIndex(2);
+                              Navigator.pop(context);
+                            },
                           ),
                           _buildStatColumn(
                             'Liked Songs',
                             playlistService.likedSongs.length.toString(),
+                            onTap: () {
+                              Navigator.pushNamed(context, AppRoutes.likedSongs);
+                            },
                           ),
                           Consumer<FollowService>(
                             builder: (context, followService, child) {
                               return _buildStatColumn(
                                 'Following',
                                 followService.followingCount.toString(),
+                                onTap: () {
+                                  Navigator.pushNamed(context, AppRoutes.followingArtists);
+                                },
                               );
                             },
                           ),
@@ -393,7 +405,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       size: 16,
                       color: textLight,
                     ),
-                    onTap: () {},
+                    onTap: () {
+                      Provider.of<UiStateService>(context, listen: false).setTabIndex(2);
+                      Navigator.pop(context);
+                    },
                   ),
                   ListTile(
                     leading: Icon(Icons.bar_chart_outlined, color: textLight),
@@ -433,11 +448,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   ListTile(
                     leading: Icon(
-                      Icons.person_add_alt_1_outlined,
+                      Icons.download_for_offline_outlined,
                       color: textLight,
                     ),
                     title: Text(
-                      'Find Friends',
+                      'Downloads',
                       style: TextStyle(color: textDark),
                     ),
                     trailing: Icon(
@@ -445,7 +460,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       size: 16,
                       color: textLight,
                     ),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.pushNamed(context, AppRoutes.downloads);
+                    },
                   ),
                 ],
               ),
@@ -458,26 +475,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
 
 
-  Column _buildStatColumn(String title, String count) {
+  Widget _buildStatColumn(String title, String count, {VoidCallback? onTap}) {
     final theme = Theme.of(context);
     final textDark = theme.colorScheme.onSurface;
-    final textLight = theme.colorScheme.onSurface.withOpacity(0.7);
+    final textLight = theme.colorScheme.onSurface.withValues(alpha: 0.7);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          count,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: textDark,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: textDark,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(title, style: TextStyle(fontSize: 15, color: textLight)),
-      ],
+          const SizedBox(height: 4),
+          Text(title, style: TextStyle(fontSize: 15, color: textLight)),
+        ],
+      ),
     );
   }
 }

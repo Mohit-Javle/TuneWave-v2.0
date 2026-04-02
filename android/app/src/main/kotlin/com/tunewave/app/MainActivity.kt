@@ -17,6 +17,9 @@ class MainActivity : AudioServiceFragmentActivity() {
                 } catch (e: Exception) {
                     result.error("UNAVAILABLE", "APK path not available.", null)
                 }
+            } else if (call.method == "moveTaskToBack") {
+                moveTaskToBack(true)
+                result.success(null)
             } else {
                 result.notImplemented()
             }

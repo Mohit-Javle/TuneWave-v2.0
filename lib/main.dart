@@ -24,6 +24,7 @@ import 'package:clone_mp/screen/invite_friends_screen.dart';
 import 'package:clone_mp/screen/splash_screen.dart';
 
 import 'package:clone_mp/screen/profile_screen.dart';
+import 'package:clone_mp/screen/following_artists_screen.dart';
 import 'package:clone_mp/screen/liked_songs_screen.dart';
 import 'package:clone_mp/screen/notification_screen.dart';
 import 'package:clone_mp/screen/setting_screen.dart';
@@ -39,9 +40,10 @@ import 'package:clone_mp/services/download_service.dart';
 import 'package:clone_mp/screen/downloads_page.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/spotify_import_service.dart';
+import 'package:clone_mp/services/api_service.dart';
+import 'package:flutter/services.dart';
 import 'package:clone_mp/screens/personalization/personalization_screen.dart';
-// Needed for SongModel in MainScreen
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -130,7 +132,7 @@ class _AppBootstrapperState extends State<AppBootstrapper> {
             ChangeNotifierProvider(create: (_) => ThemeNotifier()),
             ChangeNotifierProvider(create: (_) => dlService..init()),
             ChangeNotifierProvider(
-              create: (_) => MusicService(audioHandler, dlService)..init(),
+              create: (_) => MusicService(audioHandler, dlService, ApiService())..init(),
             ),
             ChangeNotifierProvider(create: (_) => PlaylistService()),
             ChangeNotifierProvider(create: (_) => AuthService()),
@@ -205,10 +207,27 @@ class MyApp extends StatelessWidget {
           home: const OnboardingPager(),
           initialRoute: AppRoutes.splash,
           builder: (context, child) {
-            return GlobalMiniPlayer(
-              navigatorKey: navigatorKey,
-              musicService: musicService,
-              child: child ?? const SizedBox.shrink(),
+            return ValueListenableBuilder<String?>(
+              valueListenable: appRouteObserver.currentRouteNotifier,
+              builder: (context, currentRoute, _) {
+                // Determine if we should show the global mini player wrapper.
+                // We hide it on splash, root (/), login, and personalization screens.
+                final isStartupRoute = currentRoute == null || 
+                                      currentRoute == AppRoutes.splash || 
+                                      currentRoute == AppRoutes.root ||
+                                      currentRoute == AppRoutes.login ||
+                                      currentRoute == AppRoutes.personalization;
+
+                if (isStartupRoute) {
+                  return child ?? const SizedBox.shrink();
+                }
+
+                return GlobalMiniPlayer(
+                  navigatorKey: navigatorKey,
+                  musicService: musicService,
+                  child: child ?? const SizedBox.shrink(),
+                );
+              },
             );
           },
           routes: {
@@ -231,6 +250,7 @@ class MyApp extends StatelessWidget {
                   ModalRoute.of(context)!.settings.arguments
                       as Map<String, String>,
             ),
+            AppRoutes.followingArtists: (context) => const FollowingArtistsScreen(),
             AppRoutes.album: (context) => AlbumDetailScreen(
               album: ModalRoute.of(context)!.settings.arguments as AlbumModel,
             ),
@@ -269,6 +289,22 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     super.initState();
     _musicService = Provider.of<MusicService>(context, listen: false);
 
+    // Mark app as initialized and show the mini player
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uiStateService = Provider.of<UiStateService>(context, listen: false);
+      final playlistService = Provider.of<PlaylistService>(context, listen: false);
+      
+      uiStateService.unlockMiniPlayer();
+      uiStateService.setAppInitialized(true);
+
+      // AUTO-SYNC SESSION:
+      // Ensure user data is loaded if they are already logged in
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null && firebaseUser.email != null) {
+        playlistService.loadUserData(firebaseUser.email!);
+      }
+    });
+
     _pages = [
       const SizedBox.shrink(),
       SearchScreen(onPlaySong: _playNewSong),
@@ -295,11 +331,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
   void _onItemTapped(int index) {
     if (_selectedIndex != index) {
+      Provider.of<UiStateService>(context, listen: false).setTabIndex(index);
+      
       setState(() {
         _selectedIndex = index;
         
         // Update history: avoid consecutive duplicates
-        if (_navigationHistory.last != index) {
+        if (_navigationHistory.isEmpty || _navigationHistory.last != index) {
           _navigationHistory.add(index);
         }
       });
@@ -323,6 +361,20 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final uiStateService = Provider.of<UiStateService>(context);
+    
+    // Sync local selected index with service
+    if (_selectedIndex != uiStateService.currentTabIndex) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+           _selectedIndex = uiStateService.currentTabIndex;
+           if (_navigationHistory.isEmpty || _navigationHistory.last != _selectedIndex) {
+             _navigationHistory.add(_selectedIndex);
+           }
+        });
+        _animationController.reset();
+        _animationController.forward();
+      });
+    }
 
     // Rebuild HomeScreen with current state
     _pages[0] = HomeScreen(
@@ -330,11 +382,13 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       onTogglePlayPause: _togglePlayPause,
     );
 
-    return WillPopScope(
-      onWillPop: () async {
-        // If drawer is open, let the default pop behavior close the drawer
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        // If drawer is open, close it
         if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
-          return true;
+          _scaffoldKey.currentState?.closeDrawer();
+          return;
         }
 
         if (_navigationHistory.length > 1) {
@@ -342,31 +396,22 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
           setState(() {
             _navigationHistory.removeLast(); // Remove current
             _selectedIndex = _navigationHistory.last; // Go to previous
+            // Sync service so Snap-Back doesn't trigger
+            uiStateService.setTabIndex(_selectedIndex);
           });
           _animationController.reset();
           _animationController.forward();
-          return false; // Do not pop the app
+          return;
         } 
         
-        // If we are at the root (Home), show exit confirmation
-        final shouldExit = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Exit App'),
-            content: const Text('Do you want to exit TuneWave?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('No'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('Yes'),
-              ),
-            ],
-          ),
-        );
-        return shouldExit ?? false;
+        // If we are at the root (Home), minimize app to background (Spotify-like)
+        try {
+          // Standard system pop (usually backgrounds on modern Android)
+          await SystemNavigator.pop();
+        } catch (e) {
+          // Fail-safe native method
+          const MethodChannel('com.tunewave.app/apk_share').invokeMethod('moveTaskToBack');
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,

@@ -3,6 +3,7 @@
 import 'package:clone_mp/services/music_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:clone_mp/widgets/falling_item.dart';
 
 class QueueScreen extends StatelessWidget {
@@ -87,12 +88,7 @@ class QueueScreen extends StatelessWidget {
                   direction: DismissDirection.endToStart,
                   confirmDismiss: (direction) async {
                     if (isCurrentSong) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Cannot remove currently playing song'),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
+                      showMusicToast(context, 'Cannot remove currently playing song', type: ToastType.info);
                       return false;
                     }
                     

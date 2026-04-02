@@ -109,12 +109,7 @@ class _CreatePlaylistSheetState extends State<CreatePlaylistSheet> {
                 Navigator.pop(context);
                 showMusicToast(context, 'Playlist Created', type: ToastType.success);
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Please enter a playlist name."),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                showMusicToast(context, "Please enter a playlist name.", type: ToastType.error);
               }
             },
             style: ElevatedButton.styleFrom(

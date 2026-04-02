@@ -2,6 +2,7 @@
 import 'package:clone_mp/models/song_model.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 
 class Playlist {
@@ -56,6 +57,8 @@ class PlaylistService with ChangeNotifier {
   List<SongModel> get likedSongs => _likedSongs;
   String? _currentUserEmail;
 
+  String? get _effectiveUserEmail => _currentUserEmail ?? FirebaseAuth.instance.currentUser?.email;
+
   // Load all user data from Firestore
   Future<void> loadUserData(String userEmail) async {
     _currentUserEmail = userEmail;
@@ -65,18 +68,25 @@ class PlaylistService with ChangeNotifier {
   }
 
   Future<void> _loadLikedSongs() async {
-    if (_currentUserEmail == null) return;
+    final email = _effectiveUserEmail;
+    if (email == null) {
+      debugPrint("🎵 PlaylistService: Cannot load liked songs - User not logged in.");
+      return;
+    }
     try {
+      debugPrint("🎵 PlaylistService: Loading liked songs for $email...");
       final snapshot = await FirebaseFirestore.instance
         .collection('users')
-        .doc(_currentUserEmail)
+        .doc(email)
         .collection('likedSongs')
+        .orderBy('likedAt', descending: true)
         .get();
       _likedSongs = snapshot.docs
         .map((doc) => SongModel.fromJson(doc.data()))
         .toList();
+      debugPrint("🎵 PlaylistService: Loaded ${_likedSongs.length} liked songs.");
     } catch (e) {
-      debugPrint('Error loading liked songs: $e');
+      debugPrint('🎵 PlaylistService: Error loading liked songs: $e');
       _likedSongs = [];
     }
   }
@@ -111,7 +121,11 @@ class PlaylistService with ChangeNotifier {
   }
 
   Future<void> toggleLike(SongModel song) async {
-    if (_currentUserEmail == null) return; 
+    final email = _effectiveUserEmail;
+    if (email == null) {
+      debugPrint("🎵 PlaylistService: Cannot toggle like - User session MISSING ❌");
+      return;
+    }
 
     if (isLiked(song)) {
       _likedSongs.removeWhere((s) => s.id == song.id);
@@ -119,32 +133,44 @@ class PlaylistService with ChangeNotifier {
 
       // Remove from Firestore
       try {
-        await FirebaseFirestore.instance
+        debugPrint("🎵 PlaylistService: REMOVING [${song.name}] from Firestore for $email...");
+        final snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUserEmail)
+          .doc(email)
           .collection('likedSongs')
-          .doc(song.id)
-          .delete();
+          .where('id', isEqualTo: song.id)
+          .get();
+        
+        for (var doc in snapshot.docs) {
+          await doc.reference.delete();
+        }
+        debugPrint("🎵 PlaylistService: Removed from Firestore SUCCESS ✅");
       } catch (e) {
-        debugPrint('Error removing liked song: $e');
+        debugPrint('🎵 PlaylistService: Firestore REMOVE ERROR: $e ❌');
       }
     } else {
-      _likedSongs.add(song);
+      _likedSongs.insert(0, song);
       notifyListeners();
 
-      // Add to Firestore
+      // Add to Firestore with a sortable ID
       try {
+        debugPrint("🎵 PlaylistService: ADDING [${song.name}] to Firestore for $email...");
+        final int timestamp = DateTime.now().millisecondsSinceEpoch;
+        final String docId = "${timestamp}_${song.id}";
+        
         await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUserEmail)
+          .doc(email)
           .collection('likedSongs')
-          .doc(song.id)
+          .doc(docId)
           .set({
             ...song.toJson(),
             'likedAt': FieldValue.serverTimestamp(),
+            'sortId': timestamp,
           });
+        debugPrint("🎵 PlaylistService: Firestore Sync: SUCCESS ✅ (Doc: $docId)");
       } catch (e) {
-        debugPrint('Error saving liked song: $e');
+        debugPrint('🎵 PlaylistService: Firestore ADD ERROR: $e ❌');
       }
     }
   }

@@ -14,6 +14,8 @@ class SongModel {
   final DateTime? downloadedAt; // When the song was downloaded
 
   final String? duration; // Song duration in seconds or formatted string
+  final String? genre; // Song genre
+  final String? language; // Song language
 
   SongModel({
     required this.id,
@@ -26,6 +28,8 @@ class SongModel {
     required this.downloadUrl,
     required this.hasLyrics,
     this.duration,
+    this.genre,
+    this.language,
     this.playedAt,
     this.isDownloaded = false,
     this.localFilePath,
@@ -78,6 +82,8 @@ class SongModel {
       downloadUrl: decryptedUrl,
       hasLyrics: moreInfo['has_lyrics'] == 'true',
       duration: moreInfo['duration']?.toString(),
+      genre: moreInfo['genre']?.toString(),
+      language: json['language']?.toString(),
     );
   }
 
@@ -108,6 +114,8 @@ class SongModel {
                 ? DateTime.tryParse(json['downloadedAt']) 
                 : (json['downloadedAt'] as dynamic).toDate()) 
             : null,
+        genre: json['genre'],
+        language: json['language'],
       );
     }
     return SongModel.fromOfficialJson(json);
@@ -130,6 +138,8 @@ class SongModel {
       'isDownloaded': isDownloaded,
       'localFilePath': localFilePath,
       'downloadedAt': downloadedAt?.toIso8601String(),
+      'genre': genre,
+      'language': language,
     };
   }
 }

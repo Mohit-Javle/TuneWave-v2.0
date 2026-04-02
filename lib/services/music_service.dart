@@ -10,12 +10,15 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:flutter/material.dart';
 
 import 'download_service.dart';
+import 'dart:async';
 
+import 'api_service.dart';
 export '../models/song_model.dart'; 
 
-class MusicService with ChangeNotifier {
+class MusicService with ChangeNotifier, WidgetsBindingObserver {
   final AudioHandler _audioHandler; // Use base handler
   final DownloadService _downloadService;
+  final ApiService _apiService;
 
   List<SongModel> _playlist = [];
   List<SongModel> _listeningHistory = []; 
@@ -31,6 +34,7 @@ class MusicService with ChangeNotifier {
   final ValueNotifier<Duration> totalDurationNotifier = ValueNotifier(Duration.zero);
   final ValueNotifier<bool> isRepeatNotifier = ValueNotifier(false);
   final ValueNotifier<bool> isShuffleNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> isAutoplayEnabled = ValueNotifier(true); // Default to true
   final ValueNotifier<String?> errorMessageNotifier = ValueNotifier(null);
   final ValueNotifier<Color?> currentAccentColorNotifier = ValueNotifier(null);
 
@@ -58,9 +62,11 @@ class MusicService with ChangeNotifier {
   bool get isPlaying => isPlayingNotifier.value;
 
   List<SongModel> _originalPlaylist = [];
+  Timer? _positionSaveTimer;
+  bool _isAutoplayTriggering = false;
 
 
-  MusicService(this._audioHandler, this._downloadService); // Inject handler and download service
+  MusicService(this._audioHandler, this._downloadService, this._apiService); // Inject services
 
   void init() {
     // Listen to AudioHandler state
@@ -74,13 +80,14 @@ class MusicService with ChangeNotifier {
       } else if (!playbackState.playing && wasPlaying) {
         _stopListeningTimeTracking();
       }
-      // You might need a periodic timer or a ticker to update position smoothly in UI
-      // but for now relying on state updates. 
-      // Note: playbackState.position is only updated on state changes or specific events, 
-      // not continuously. AudioService suggests using AudioService.position stream for 
-      // continuous updates, but we are using our custom handler. 
-      // Our custom handler emits position changes from _player.onPositionChanged 
-      // into playbackState.updatePosition, so it should work.
+
+      if (playbackState.processingState == AudioProcessingState.completed || 
+          (playbackState.processingState == AudioProcessingState.idle && !playbackState.playing)) {
+         // Use a small cooldown to avoid double-triggers
+         if (!_isAutoplayTriggering) {
+            _handleQueueEnd();
+         }
+      }
     });
 
     _audioHandler.mediaItem.listen((mediaItem) {
@@ -115,6 +122,194 @@ class MusicService with ChangeNotifier {
 
     _loadHistory();
     _loadStats();
+    
+    // Lifecycle Monitoring
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Periodically save position while playing
+    _positionSaveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (isPlayingNotifier.value) {
+        _saveStats();
+      }
+    });
+  }
+
+  Future<void> _handleQueueEnd() async {
+    debugPrint("🎵 MusicService: _handleQueueEnd check - Autoplay: ${isAutoplayEnabled.value}, Triggering: $_isAutoplayTriggering");
+    if (!isAutoplayEnabled.value || _isAutoplayTriggering) return;
+    
+    // Give the state a moment to stabilize
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    final lastSong = currentSongNotifier.value;
+    final currentIndex = currentQueueIndex;
+    final queueLen = _playlist.length;
+    
+    debugPrint("🎵 MusicService: End Detection -> LastSong: ${lastSong?.name}, Index: $currentIndex, QueueLen: $queueLen");
+
+    if (lastSong == null) return;
+
+    // Check if we are at the end: Last index or single song in queue
+    if (currentIndex >= queueLen - 1 || queueLen <= 1) {
+       debugPrint("🎵 MusicService: Final Song detected! Triggering Smart Autoplay for ${lastSong.name}...");
+       await _triggerSmartAutoplay(lastSong.id);
+    } else {
+       debugPrint("🎵 MusicService: Not at end of queue yet.");
+    }
+  }
+
+  Future<void> _triggerSmartAutoplay(String songId) async {
+    _isAutoplayTriggering = true;
+    try {
+      final current = currentSongNotifier.value;
+      if (current == null) return;
+
+      debugPrint("🎵 MusicService: Vibe Engine starting for ${current.name} [${current.genre} / ${current.language}]");
+
+      // Reservoir for mixed suggestions
+      List<SongModel> vibeMix = [];
+
+      // 1. Vibe Match: Direct Suggestions (40%)
+      final directSuggestions = await _apiService.getSuggestedSongs(songId);
+      if (directSuggestions.isNotEmpty) {
+        vibeMix.addAll(directSuggestions.take(6));
+      }
+
+      // 2. Style Match: Artist Top Songs (30%)
+      if (current.artistId != null) {
+        final artistDetails = await _apiService.getArtistDetails(current.artistId!);
+        if (artistDetails['topSongs'] != null) {
+          final artistSongs = List<SongModel>.from(artistDetails['topSongs']);
+          artistSongs.removeWhere((s) => s.id == songId); // Don't repeat current
+          vibeMix.addAll(artistSongs.take(5));
+        }
+      }
+
+      // 3. Mood Match: Same Genre/Language Hits (30%)
+      if (current.genre != null || current.language != null) {
+        final genreHits = await _apiService.getSongsByGenre(current.genre, current.language);
+        if (genreHits.isNotEmpty) {
+          genreHits.removeWhere((s) => s.id == songId);
+          vibeMix.addAll(genreHits.take(5));
+        }
+      }
+
+      if (vibeMix.isNotEmpty) {
+        // SMART SHUFFLE: Randomize the vibe mix to make it feel like a Radio station
+        vibeMix.shuffle();
+        
+        debugPrint("🎵 MusicService: Vibe Mix created with ${vibeMix.length} diverse tracks.");
+        
+        // Add unique songs to queue
+        int addedCount = 0;
+        for (var song in vibeMix) {
+          if (!_playlist.any((s) => s.id == song.id)) {
+            await addToQueue(song);
+            addedCount++;
+          }
+          if (addedCount >= 12) break; // Keep the next session concise
+        }
+        
+        // Play next if stopped
+        if (!isPlayingNotifier.value) {
+           playNext();
+        }
+      } else {
+        debugPrint("🎵 MusicService: Vibe Engine could not find any matches.");
+      }
+    } catch (e) {
+      debugPrint("🎵 MusicService: Error in Vibe Engine: $e");
+    } finally {
+      _isAutoplayTriggering = false;
+    }
+  }
+
+  // Method to recover last session without autoplay
+  Future<void> _recoverSession(SharedPreferences prefs) async {
+    try {
+      final playlistJson = prefs.getString('last_playlist');
+      final index = prefs.getInt('last_index') ?? 0;
+      final positionMs = prefs.getInt('last_position_ms') ?? 0;
+      final bool isRepeat = prefs.getBool('last_is_repeat') ?? false;
+      final bool isShuffle = prefs.getBool('last_is_shuffle') ?? false;
+
+      if (playlistJson != null && playlistJson.isNotEmpty) {
+        final List<dynamic> decoded = json.decode(playlistJson);
+        final List<SongModel> recoveredPlaylist = decoded
+            .map((e) => SongModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+
+        if (recoveredPlaylist.isNotEmpty) {
+          _playlist = recoveredPlaylist;
+          _originalPlaylist = List.from(recoveredPlaylist);
+          isRepeatNotifier.value = isRepeat;
+          isShuffleNotifier.value = isShuffle;
+
+          // Update notifiers for UI
+          SongModel currentSong = _playlist[index];
+          currentSongNotifier.value = currentSong;
+          currentDurationNotifier.value = Duration(milliseconds: positionMs);
+          
+          // CRITICAL: Fetch fresh details (URL & Duration) for the restored song
+          // JioSaavn URLs expire, so we MUST get a fresh one or playback will fail
+          _apiService.getSongDetails(currentSong.id).then((freshSong) {
+            if (freshSong != null) {
+              debugPrint("🎵 MusicService: Refetched fresh URL for ${freshSong.name}");
+              
+              // Only update if it's still the active song by the time API returns
+              if (currentSongNotifier.value?.id == freshSong.id) {
+                // Update the track in our playlist with the fresh data
+                final actualIdx = _playlist.indexWhere((s) => s.id == freshSong.id);
+                if (actualIdx != -1) {
+                  _playlist[actualIdx] = freshSong;
+                }
+                currentSongNotifier.value = freshSong;
+                
+                // Restore total duration so progress bar shows correct percentage
+                if (freshSong.duration != null && freshSong.duration!.isNotEmpty) {
+                  final durationStr = freshSong.duration!;
+                  if (durationStr.contains(':')) {
+                    final parts = durationStr.split(':');
+                    if (parts.length == 2) {
+                      final mins = int.tryParse(parts[0]) ?? 0;
+                      final secs = int.tryParse(parts[1]) ?? 0;
+                      totalDurationNotifier.value = Duration(minutes: mins, seconds: secs);
+                    }
+                  } else {
+                    final seconds = int.tryParse(durationStr) ?? 0;
+                    if (seconds > 0) {
+                      totalDurationNotifier.value = Duration(seconds: seconds);
+                    }
+                  }
+                }
+                
+                // Update audio engine with fresh URL
+                final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
+                final dynamic handler = _audioHandler;
+                handler.preparePlaylist(mediaItems, actualIdx != -1 ? actualIdx : index);
+                
+                // Re-sync with handler positions (wait for source setup to complete)
+                Future.delayed(const Duration(milliseconds: 1000), () async {
+                  await handler.setInitialPosition(Duration(milliseconds: positionMs));
+                  notifyListeners();
+                });
+              }
+            } else {
+                // Fallback if API fails
+                final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
+                final dynamic handler = _audioHandler;
+                handler.preparePlaylist(mediaItems, index);
+            }
+          });
+          
+          _updateAccentColor(currentSong.imageUrl);
+          
+          debugPrint("🎵 MusicService: Recovered session: ${currentSong.name} at $index");
+        }
+      }
+    } catch (e) {
+      debugPrint("Error recovering last playback session: $e");
+    }
   }
 
   DateTime? _lastPlayStartTime;
@@ -156,6 +351,9 @@ class MusicService with ChangeNotifier {
     }
     
     notifyListeners();
+    
+    // Recover session last to ensure notifiers are ready
+    await _recoverSession(prefs);
   }
 
   void logPlayContext(String id, String type, String title, String imageUrl, List<SongModel> songs) {
@@ -186,6 +384,18 @@ class MusicService with ChangeNotifier {
     await prefs.setStringList('listening_history', historyJsonList);
     
     await prefs.setString('recent_contexts', json.encode(_recentContexts));
+
+    // Save playback session
+    if (_playlist.isNotEmpty) {
+      final playlistJson = json.encode(_playlist.map((s) => s.toJson()).toList());
+      await prefs.setString('last_playlist', playlistJson);
+      
+      final dynamic handler = _audioHandler;
+      await prefs.setInt('last_index', handler.currentIndex ?? 0);
+      await prefs.setInt('last_position_ms', currentDurationNotifier.value.inMilliseconds);
+      await prefs.setBool('last_is_repeat', isRepeatNotifier.value);
+      await prefs.setBool('last_is_shuffle', isShuffleNotifier.value);
+    }
   }
 
   Future<void> _updateAccentColor(String? imageUrl) async {
@@ -337,6 +547,7 @@ class MusicService with ChangeNotifier {
     isRepeatNotifier.value = !isRepeatNotifier.value;
     final newMode = isRepeatNotifier.value ? AudioServiceRepeatMode.one : AudioServiceRepeatMode.none;
     _audioHandler.setRepeatMode(newMode);
+    _saveStats();
   }
 
   void toggleShuffle() {
@@ -361,6 +572,7 @@ class MusicService with ChangeNotifier {
     final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
     
     (_audioHandler as dynamic).setPlaylist(mediaItems, newIndex >= 0 ? newIndex : 0);
+    _saveStats();
     notifyListeners();
   }
 
@@ -437,12 +649,24 @@ class MusicService with ChangeNotifier {
     currentSongNotifier.value = null;
     notifyListeners();
   }
-
   @override
   void dispose() {
     // We don't own the handler, so we don't dispose it here usually, 
     // unless we want to stop background audio when UI closes (which we don't).
+    WidgetsBinding.instance.removeObserver(this);
+    _positionSaveTimer?.cancel();
     super.dispose();
+  }
+
+  // Handle Lifecycle for Auto-Save
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || 
+        state == AppLifecycleState.inactive || 
+        state == AppLifecycleState.detached) {
+      debugPrint("🎵 MusicService: Saving stats due to lifecycle state Change: $state");
+      _saveStats();
+    }
   }
   MediaItem _createMediaItem(SongModel song) {
     String url = song.downloadUrl;

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../services/download_service.dart';
 import '../services/music_service.dart';
 import '../widgets/falling_item.dart';
+import '../widgets/music_toast.dart';
 
 import '../widgets/download_button.dart';
 
@@ -61,12 +62,7 @@ class DownloadsPage extends StatelessWidget {
                     if (confirmed == true) {
                       await downloadService.clearAllDownloads();
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('All downloads cleared'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
+                        showMusicToast(context, 'All downloads cleared', type: ToastType.success);
                       }
                     }
                   }

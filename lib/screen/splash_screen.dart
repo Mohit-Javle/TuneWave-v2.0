@@ -9,6 +9,7 @@ import 'package:clone_mp/route_names.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:clone_mp/services/migration_service.dart';
+import 'package:clone_mp/services/ui_state_service.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -43,6 +44,11 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _animationController.forward();
+    
+    // Explicitly lock the mini player during splash screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<UiStateService>(context, listen: false).hideMiniPlayer();
+    });
 
     // Call the new method to decide where to navigate
     _checkLoginStatus();
