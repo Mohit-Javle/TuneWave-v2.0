@@ -3,9 +3,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeNotifier with ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.light;
+  bool _isDiscStyle = true;
   String? _currentUserEmail;
 
   ThemeMode get getThemeMode => _themeMode;
+  bool get isDiscStyle => _isDiscStyle;
 
   Future<void> loadTheme(String userEmail) async {
     _currentUserEmail = userEmail;
@@ -18,19 +20,33 @@ class ThemeNotifier with ChangeNotifier {
     } else {
       _themeMode = ThemeMode.light; // Default
     }
+
+    final isDisc = prefs.getBool('isDiscStyle_$userEmail');
+    if (isDisc != null) {
+      _isDiscStyle = isDisc;
+    } else {
+      _isDiscStyle = true; // Default
+    }
+    
     notifyListeners();
   }
 
   void setTheme(ThemeMode themeMode) {
     _themeMode = themeMode;
     notifyListeners();
-    _saveTheme();
+    _saveSettings();
   }
 
-  Future<void> _saveTheme() async {
+  void setDiscStyle(bool value) {
+    _isDiscStyle = value;
+    notifyListeners();
+    _saveSettings();
+  }
+
+  Future<void> _saveSettings() async {
     if (_currentUserEmail == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final key = 'theme_$_currentUserEmail';
-    await prefs.setInt(key, _themeMode.index);
+    await prefs.setInt('theme_$_currentUserEmail', _themeMode.index);
+    await prefs.setBool('isDiscStyle_$_currentUserEmail', _isDiscStyle);
   }
 }

@@ -149,6 +149,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: iconColor,
               ),
             ),
+            SwitchListTile(
+              title: Text('Player Disc Style', style: TextStyle(color: textDark)),
+              subtitle: Text(
+                'Switch between rotating disc and square artwork',
+                style: TextStyle(color: textLight),
+              ),
+              value: themeNotifier.isDiscStyle,
+              onChanged: (bool value) {
+                themeNotifier.setDiscStyle(value);
+              },
+              activeColor: primaryOrange,
+              secondary: Icon(
+                themeNotifier.isDiscStyle ? Icons.album_outlined : Icons.square_outlined,
+                color: iconColor,
+              ),
+            ),
 
             _buildSectionHeader('Playback'),
             SwitchListTile(

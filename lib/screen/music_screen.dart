@@ -2,6 +2,7 @@
 
 import 'package:clone_mp/services/music_service.dart';
 import 'package:clone_mp/services/playlist_service.dart';
+import 'package:clone_mp/services/theme_notifier.dart';
 
 import 'package:clone_mp/widgets/create_playlist_sheet.dart';
 import 'package:clone_mp/widgets/download_button.dart';
@@ -319,32 +320,63 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                                       musicService.playNext();
                                     }
                                   },
-                                  child: Transform.rotate(
-                                    angle: _rotationController.value * 2 * math.pi,
-                                    child: Container(
-                                      width: 280,
-                                      height: 280,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: (accentColor ?? theme.shadowColor).withOpacity(
-                                              0.3,
+                                  child: Consumer<ThemeNotifier>(
+                                    builder: (context, themeNotifier, _) {
+                                      final bool isDisc = themeNotifier.isDiscStyle;
+                                      const double artSize = 280.0;
+                                      
+                                      if (isDisc) {
+                                        return Transform.rotate(
+                                          angle: _rotationController.value * 2 * math.pi,
+                                          child: Container(
+                                            width: artSize,
+                                            height: artSize,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: (accentColor ?? theme.shadowColor).withOpacity(0.3),
+                                                  blurRadius: 30,
+                                                  spreadRadius: 5,
+                                                ),
+                                              ],
                                             ),
-                                            blurRadius: 30,
-                                            spreadRadius: 5,
+                                            child: ClipOval(
+                                              child: Image.network(
+                                                currentSong.imageUrl,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                              ),
+                                            ),
                                           ),
-                                        ],
-                                      ),
-                                      child: ClipOval(
-                                        child: Image.network(
-                                          currentSong.imageUrl,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, _, _) =>
-                                              Container(color: Colors.grey),
-                                        ),
-                                      ),
-                                    ),
+                                        );
+                                      } else {
+                                        // Square Mode (Spotify style)
+                                        return Container(
+                                          width: artSize,
+                                          height: artSize,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(24),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: (accentColor ?? theme.shadowColor).withOpacity(0.3),
+                                                blurRadius: 30,
+                                                spreadRadius: 5,
+                                                offset: const Offset(0, 10),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(24),
+                                            child: Image.network(
+                                              currentSong.imageUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
                                   ),
                                 );
                               },
