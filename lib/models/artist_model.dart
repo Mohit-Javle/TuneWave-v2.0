@@ -12,14 +12,20 @@ class ArtistModel {
   });
 
   factory ArtistModel.fromOfficialJson(Map<String, dynamic> json) {
-     String getImageUrl(String? url) {
-      if (url == null || url.isEmpty) return '';
-      // JioSaavn returns various low-res strings like 50x50, 150x150, etc.
-      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
+    String getImageUrl(dynamic image) {
+      if (image == null) return '';
+      if (image is List && image.isNotEmpty) {
+        return image.last['link']?.toString() ?? '';
+      }
+      if (image is String) {
+        if (image.isEmpty) return '';
+        return image.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
+      }
+      return '';
     }
 
     return ArtistModel(
-      id: json['id'] ?? '',
+      id: json['id']?.toString() ?? '',
       name: json['title'] ?? json['name'] ?? 'Unknown Artist',
       imageUrl: getImageUrl(json['image']),
     );

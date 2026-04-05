@@ -14,17 +14,26 @@ class AlbumModel {
   });
 
   factory AlbumModel.fromOfficialJson(Map<String, dynamic> json) {
-    String getImageUrl(String? url) {
-      if (url == null || url.isEmpty) return '';
-      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
+    String getImageUrl(dynamic image) {
+      if (image == null) return '';
+      if (image is List && image.isNotEmpty) {
+        return image.last['link']?.toString() ?? '';
+      }
+      if (image is String) {
+        if (image.isEmpty) return '';
+        return image.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500'); 
+      }
+      return '';
     }
 
+    final moreInfo = json['more_info'] is Map ? json['more_info'] : {};
+
     return AlbumModel(
-      id: json['id'] ?? '',
-      name: json['title']?.toString().replaceAll('&quot;', '"') ?? 'Unknown Album',
-      artist: json['more_info']?['music'] ?? json['subtitle'] ?? 'Unknown Artist',
+      id: json['id']?.toString() ?? '',
+      name: (json['name'] ?? json['title'])?.toString().replaceAll('&quot;', '"') ?? 'Unknown Album',
+      artist: (moreInfo['music'] ?? json['subtitle'] ?? json['artist']?['name'] ?? json['artist'])?.toString() ?? 'Unknown Artist',
       imageUrl: getImageUrl(json['image']),
-      year: json['year'] ?? json['more_info']?['year'] ?? '',
+      year: (json['year'] ?? moreInfo['year'])?.toString() ?? '',
     );
   }
 

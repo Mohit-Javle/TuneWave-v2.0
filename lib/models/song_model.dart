@@ -36,17 +36,55 @@ class SongModel {
     this.downloadedAt,
   });
 
-  // Updated to handle Official JioSaavn API response
+  // Updated to handle Official JioSaavn API response AND community mirrors
   factory SongModel.fromOfficialJson(Map<String, dynamic> json, {String decryptedUrl = ''}) {
     // Helper to get high quality image
-    String getImageUrl(String? url) {
-      if (url == null || url.isEmpty) return '';
-      return url.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500');
+    String getImageUrl(dynamic image) {
+      if (image == null) return '';
+      
+      // Handle Mirror format (List of objects with link/quality)
+      if (image is List && image.isNotEmpty) {
+        return image.last['link']?.toString() ?? '';
+      }
+      
+      // Handle Official format (String with placeholder)
+      if (image is String) {
+        if (image.isEmpty) return '';
+        return image.replaceAll(RegExp(r'(?:150x150|50x50)'), '500x500');
+      }
+      
+      return '';
+    }
+
+    // Helper to get download URL
+    String getDownloadUrl(dynamic downloadUrl) {
+      if (decryptedUrl.isNotEmpty) return decryptedUrl;
+      if (downloadUrl == null) return '';
+      
+      // Handle Mirror format (List of objects with link/quality)
+      if (downloadUrl is List && downloadUrl.isNotEmpty) {
+        return downloadUrl.last['link']?.toString() ?? '';
+      }
+      
+      if (downloadUrl is String) return downloadUrl;
+      
+      return '';
     }
 
     // Helper to get artist names
     String getArtists(Map<String, dynamic>? moreInfo) {
-      if (moreInfo == null) return 'Unknown Artist';
+      // Mirror format often has "artists" as a direct field or "primaryArtists"
+      if (json['artists'] != null) {
+        final artistsRaw = json['artists'];
+        if (artistsRaw is String) return artistsRaw;
+        if (artistsRaw is Map && artistsRaw['primary'] != null) {
+          final primary = artistsRaw['primary'] as List;
+          return primary.map((a) => a['name']).join(', ');
+        }
+      }
+      
+      if (moreInfo == null) return json['subtitle'] ?? 'Unknown Artist';
+      
       final artistMap = moreInfo['artistMap'];
       if (artistMap != null && artistMap['primary_artists'] != null) {
         final artists = artistMap['primary_artists'] as List;
@@ -58,32 +96,33 @@ class SongModel {
     }
 
     String? getArtistId(Map<String, dynamic>? moreInfo) {
-      if (moreInfo == null) return null;
-      final artistMap = moreInfo['artistMap'];
-      if (artistMap != null && artistMap['primary_artists'] != null) {
-        final artists = artistMap['primary_artists'] as List;
-        if (artists.isNotEmpty) {
-          return artists.first['id']?.toString();
+      if (moreInfo != null) {
+        final artistMap = moreInfo['artistMap'];
+        if (artistMap != null && artistMap['primary_artists'] != null) {
+          final artists = artistMap['primary_artists'] as List;
+          if (artists.isNotEmpty) {
+            return artists.first['id']?.toString();
+          }
         }
       }
-      return null;
+      return json['artistId']?.toString();
     }
 
     final moreInfo = json['more_info'] is Map ? json['more_info'] : {};
 
     return SongModel(
-      id: json['id'] ?? '',
-      name: json['title']?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? 'Unknown',
+      id: json['id']?.toString() ?? '',
+      name: (json['name'] ?? json['title'])?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? 'Unknown',
       artist: getArtists(moreInfo),
       artistId: getArtistId(moreInfo),
-      album: moreInfo['album']?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? '',
-      albumId: moreInfo['album_id']?.toString(),
+      album: (moreInfo['album'] ?? json['album']?['name'] ?? json['album'])?.toString().replaceAll('&quot;', '"').replaceAll('&amp;', '&') ?? '',
+      albumId: (moreInfo['album_id'] ?? json['album']?['id'])?.toString(),
       imageUrl: getImageUrl(json['image']),
-      downloadUrl: decryptedUrl,
-      hasLyrics: moreInfo['has_lyrics'] == 'true',
-      duration: moreInfo['duration']?.toString(),
-      genre: moreInfo['genre']?.toString(),
-      language: json['language']?.toString(),
+      downloadUrl: getDownloadUrl(json['downloadUrl'] ?? json['download_url']),
+      hasLyrics: moreInfo['has_lyrics'] == 'true' || json['hasLyrics'] == true,
+      duration: (moreInfo['duration'] ?? json['duration'])?.toString(),
+      genre: (moreInfo['genre'] ?? json['genre'])?.toString(),
+      language: (json['language'] ?? json['language'])?.toString(),
     );
   }
 

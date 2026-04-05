@@ -12,7 +12,14 @@ import 'package:clone_mp/route_names.dart';
 import 'dart:math' as math;
 import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:clone_mp/widgets/song_info_dialog.dart';
+import 'package:clone_mp/widgets/share_card_widget.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:ui' as ui;
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:provider/provider.dart';
+import 'package:flutter/rendering.dart';
 
 // Define a custom PopupMenuEntry for better styling
 class _CustomPopupMenuItem<T> extends PopupMenuEntry<T> {
@@ -85,6 +92,8 @@ class MusicPlayerScreen extends StatefulWidget {
 class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     with TickerProviderStateMixin {
   late AnimationController _rotationController;
+  final GlobalKey _shareCardKey = GlobalKey();
+  bool _isSharing = false;
 
   late final MusicService _musicService;
 
@@ -209,12 +218,8 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                   _showSongDetailsDialog(context, currentSong);
                 } else if (result == 'add_to_playlist') {
                   _showAddToPlaylistOptions(context, currentSong);
-                } else if (result == 'report') {
-                  showMusicToast(
-                    context,
-                    'Thank you for your report! We will investigate.',
-                    type: ToastType.success,
-                  );
+                } else if (result == 'share') {
+                  _shareSongAsImage(context, currentSong);
                 }
               },
               icon: Icon(Icons.more_horiz, color: iconColor, size: 30),
@@ -236,9 +241,9 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                 ),
                 const PopupMenuDivider(color: Colors.black),
                 _CustomPopupMenuItem<String>(
-                  value: 'report',
-                  icon: Icons.flag_outlined,
-                  text: 'Report Something',
+                  value: 'share',
+                  icon: Icons.share_outlined,
+                  text: 'Share',
                 ),
               ],
             ),
@@ -255,16 +260,16 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
 
     final theme = Theme.of(context);
     final textDark = theme.colorScheme.onSurface;
-    final textLight = theme.colorScheme.onSurface.withOpacity(0.7);
+    final textLight = theme.colorScheme.onSurface.withValues(alpha: 0.7);
     final iconColor = theme.unselectedWidgetColor;
 
     return Scaffold(
       body: ValueListenableBuilder<Color?>(
         valueListenable: musicService.currentAccentColorNotifier,
         builder: (context, accentColor, _) {
-          final Color topColor = accentColor?.withOpacity(0.6) ?? 
+          final Color topColor = accentColor?.withValues(alpha: 0.6) ?? 
                                (theme.brightness == Brightness.light ? Colors.white : theme.colorScheme.surface);
-          final Color bottomColor = accentColor?.withOpacity(0.2) ?? 
+          final Color bottomColor = accentColor?.withValues(alpha: 0.2) ?? 
                                  (theme.brightness == Brightness.light ? const Color.fromARGB(100, 255, 218, 192) : theme.colorScheme.background);
 
           return AnimatedContainer(
@@ -279,184 +284,73 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                 stops: const [0.1, 0.9],
               ),
             ),
-            child: (() {
-              final currentSong = musicService.currentSongNotifier.value;
-              if (currentSong == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              final isLiked = playlistService.isLiked(currentSong);
-
-              return SafeArea(
-                child: Column(
-                  children: [
-                    _buildTopBar(context, textDark, iconColor, currentSong),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            const SizedBox(height: 20),
-                            AnimatedBuilder(
-                              animation: _rotationController,
-                              builder: (context, child) {
-                                return GestureDetector(
-                                  onDoubleTapDown: (details) {
-                                    // Determine if tap is on left or right side
-                                    final RenderBox box =
-                                        context.findRenderObject() as RenderBox;
-                                    final localPosition = box.globalToLocal(
-                                      details.globalPosition,
-                                    );
-                                    final width = box.size.width;
-
-                                    if (localPosition.dx < width / 2) {
-                                      // Left side - previous
-                                      _showSkipFeedback(context, false);
-                                      musicService.playPrevious();
-                                    } else {
-                                      // Right side - next
-                                      _showSkipFeedback(context, true);
-                                      musicService.playNext();
-                                    }
-                                  },
-                                  child: Consumer<ThemeNotifier>(
-                                    builder: (context, themeNotifier, _) {
-                                      final bool isDisc = themeNotifier.isDiscStyle;
-                                      const double artSize = 280.0;
-                                      
-                                      if (isDisc) {
-                                        return Transform.rotate(
-                                          angle: _rotationController.value * 2 * math.pi,
-                                          child: Container(
-                                            width: artSize,
-                                            height: artSize,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: (accentColor ?? theme.shadowColor).withOpacity(0.3),
-                                                  blurRadius: 30,
-                                                  spreadRadius: 5,
-                                                ),
-                                              ],
-                                            ),
-                                            child: ClipOval(
-                                              child: Image.network(
-                                                currentSong.imageUrl,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, _, _) => Container(color: Colors.grey),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      } else {
-                                        // Square Mode (Spotify style)
-                                        return Container(
-                                          width: artSize,
-                                          height: artSize,
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(24),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: (accentColor ?? theme.shadowColor).withOpacity(0.3),
-                                                blurRadius: 30,
-                                                spreadRadius: 5,
-                                                offset: const Offset(0, 10),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(24),
-                                            child: Image.network(
-                                              currentSong.imageUrl,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (_, _, _) => Container(color: Colors.grey),
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 40),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 32),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          currentSong.name,
-                                          style: TextStyle(
-                                            color: textDark,
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          currentSong.artist,
-                                          style: TextStyle(
-                                            color: textLight,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      playlistService.toggleLike(currentSong);
-                                      final isLiked = playlistService.isLiked(currentSong);
-                                      showMusicToast(
-                                        context,
-                                        isLiked ? 'Added to Liked Songs' : 'Removed from Liked Songs',
-                                        type: isLiked ? ToastType.success : ToastType.info,
-                                        isBottom: !isLiked,
-                                      );
-                                    },
-                                    icon: Icon(
-                                      isLiked
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: isLiked ? Colors.red : iconColor,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  DownloadButton(
-                                    song: currentSong,
-                                    size: 28,
-                                    color: iconColor,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            _buildControls(
-                              context,
-                              theme,
-                              textDark,
-                              textLight,
-                              iconColor,
-                              musicService,
-                              accentColor, // Pass accent color
-                            ),
-                            const SizedBox(height: 40),
-                            _buildLyricsSection(theme, currentSong),
-                          ],
+            child: Stack(
+              children: [
+                // Hidden Share Card for capture (Rendered behind the main UI)
+                Opacity(
+                  opacity: 0.01, // Nearly invisible but FORCES rendering
+                  child: IgnorePointer(
+                    child: RepaintBoundary(
+                      key: _shareCardKey,
+                      child: Builder(
+                        builder: (context) {
+                            final song = musicService.currentSongNotifier.value;
+                            if (song == null) return const SizedBox();
+                            return ShareCardWidget(
+                              song: song,
+                              accentColor: accentColor,
+                            );
+                          }
                         ),
                       ),
                     ),
-                  ],
-                ),
-              );
-            })(),
+                  ),
+                // Main UI
+                (() {
+                  final currentSong = musicService.currentSongNotifier.value;
+                  if (currentSong == null) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final isLiked = playlistService.isLiked(currentSong);
+                  return SafeArea(
+                    child: Column(
+                      children: [
+                        _buildTopBar(context, textDark, iconColor, currentSong),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                const SizedBox(height: 20),
+                                _buildArtAndControls(context, currentSong, accentColor, theme, musicService, textDark, textLight, iconColor, isLiked, playlistService),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                })(),
+                // Sharing Overlay
+                if (_isSharing)
+                  Container(
+                    color: Colors.black54,
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: primaryOrange),
+                          SizedBox(height: 20),
+                          Text(
+                            'Generating your shareable card...',
+                            style: TextStyle(color: Colors.white, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -495,11 +389,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                           SliderTheme(
                             data: SliderTheme.of(context).copyWith(
                               activeTrackColor: effectiveAccentColor.computeLuminance() < 0.2 
-                                  ? Color.alphaBlend(effectiveAccentColor.withOpacity(0.5), Colors.white70)
+                                  ? Color.alphaBlend(effectiveAccentColor.withValues(alpha: 0.5), Colors.white70)
                                   : effectiveAccentColor,
-                              inactiveTrackColor: Colors.white.withOpacity(0.15),
+                              inactiveTrackColor: Colors.white.withValues(alpha: 0.15),
                               thumbColor: Colors.white, // Always white thumb for maximum contrast
-                              overlayColor: effectiveAccentColor.withOpacity(0.2),
+                              overlayColor: effectiveAccentColor.withValues(alpha: 0.2),
                               trackHeight: 4,
                               thumbShape: const RoundSliderThumbShape(
                                 enabledThumbRadius: 7,
@@ -683,7 +577,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: primaryOrange.withOpacity(0.5),
+                        color: primaryOrange.withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(Icons.add, color: primaryOrange),
@@ -702,7 +596,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                               style: TextStyle(
                                 color: Theme.of(
                                   context,
-                                ).colorScheme.onSurface.withOpacity(0.7),
+                                ).colorScheme.onSurface.withValues(alpha: 0.7),
                               ),
                             ),
                           )
@@ -759,7 +653,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                   child: Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: primaryOrange.withOpacity(0.9),
+                      color: primaryOrange.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -777,5 +671,226 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
     );
 
     overlay.insert(overlayEntry);
+  }
+
+  // --- SHARING ENGINE ---
+  
+  Future<void> _shareSongAsImage(BuildContext context, SongModel song) async {
+    setState(() => _isSharing = true);
+    
+    try {
+      // 1. Ensure artwork is in memory (don't let this crash the process)
+      try {
+        await precacheImage(NetworkImage(song.imageUrl), context).timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint("Precache skipped/failed: $e");
+      }
+      
+      // 2. Extra time for the widget tree to settle
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // 3. Ensure we have a valid capture context
+      final RenderRepaintBoundary? boundary = 
+          _shareCardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+
+      if (boundary == null) {
+        throw Exception("Capture area not found. Please try again.");
+      }
+
+      // 4. Capture the image (Safety check for memory)
+      final ui.Image image = await boundary.toImage(pixelRatio: 1.5); // Fast & Safe quality
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData == null) {
+        throw Exception("Byte data conversion failed");
+      }
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      // 3. Save to temporary directory
+      final String tempPath = (await getTemporaryDirectory()).path;
+      final File imgFile = File('$tempPath/tunewave_share_${DateTime.now().millisecondsSinceEpoch}.png');
+      await imgFile.writeAsBytes(pngBytes);
+
+      // 4. Trigger system share
+      setState(() => _isSharing = false);
+      
+      await Share.shareXFiles(
+        [XFile(imgFile.path)],
+        text: 'Check out "${song.name}" by ${song.artist} on TuneWave! 🎧',
+      );
+
+    } catch (e) {
+      if (mounted) setState(() => _isSharing = false);
+      debugPrint("Sharing Error Details: $e");
+      
+      // Detailed feedback for debugging
+      String errorMsg = 'Sharing Error: ${e.toString().split(':').last.trim()}';
+      if (e.toString().contains('boundary')) errorMsg = 'App is busy. Wait a second and try again.';
+      
+      showMusicToast(context, errorMsg, type: ToastType.error);
+    }
+  }
+
+  // Extracted UI builder to separate concerns and handle hidden ShareCard
+  Widget _buildArtAndControls(
+    BuildContext context, 
+    SongModel currentSong, 
+    Color? accentColor, 
+    ThemeData theme, 
+    MusicService musicService,
+    Color textDark,
+    Color textLight,
+    Color iconColor,
+    bool isLiked,
+    PlaylistService playlistService,
+  ) {
+    return Column(
+      children: [
+        AnimatedBuilder(
+          animation: _rotationController,
+          builder: (context, child) {
+            return GestureDetector(
+              onDoubleTapDown: (details) {
+                final RenderBox box = context.findRenderObject() as RenderBox;
+                final localPosition = box.globalToLocal(details.globalPosition);
+                final width = box.size.width;
+
+                if (localPosition.dx < width / 2) {
+                  _showSkipFeedback(context, false);
+                  musicService.playPrevious();
+                } else {
+                  _showSkipFeedback(context, true);
+                  musicService.playNext();
+                }
+              },
+              child: Consumer<ThemeNotifier>(
+                builder: (context, themeNotifier, _) {
+                  final bool isDisc = themeNotifier.isDiscStyle;
+                  const double artSize = 280.0;
+                  
+                  if (isDisc) {
+                    return Transform.rotate(
+                      angle: _rotationController.value * 2 * math.pi,
+                      child: Container(
+                        width: artSize,
+                        height: artSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (accentColor ?? theme.shadowColor).withValues(alpha: 0.3),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.network(
+                            currentSong.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else {
+                    return Container(
+                      width: artSize,
+                      height: artSize,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: (accentColor ?? theme.shadowColor).withValues(alpha: 0.3),
+                            blurRadius: 30,
+                            spreadRadius: 5,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.network(
+                          currentSong.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 40),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      currentSong.name,
+                      style: TextStyle(
+                        color: textDark,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentSong.artist,
+                      style: TextStyle(
+                        color: textLight,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  playlistService.toggleLike(currentSong);
+                  final isLiked = playlistService.isLiked(currentSong);
+                  showMusicToast(
+                    context,
+                    isLiked ? 'Added to Liked Songs' : 'Removed from Liked Songs',
+                    type: isLiked ? ToastType.success : ToastType.info,
+                    isBottom: !isLiked,
+                  );
+                },
+                icon: Icon(
+                  isLiked ? Icons.favorite : Icons.favorite_border,
+                  color: isLiked ? Colors.red : iconColor,
+                  size: 28,
+                ),
+              ),
+              DownloadButton(
+                song: currentSong,
+                size: 28,
+                color: iconColor,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _buildControls(
+          context,
+          theme,
+          textDark,
+          textLight,
+          iconColor,
+          musicService,
+          accentColor,
+        ),
+        const SizedBox(height: 40),
+        _buildLyricsSection(theme, currentSong),
+      ],
+    );
   }
 }

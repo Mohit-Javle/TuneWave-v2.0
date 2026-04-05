@@ -1,37 +1,53 @@
+import 'dart:async';
 import 'package:audio_service/audio_service.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart' as ap;
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
 class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
-  final _player = AudioPlayer();
+  ap.AudioPlayer _player = ap.AudioPlayer();
   List<MediaItem> _queue = [];
   int _index = 0;
+  int _tracksPlayedCount = 0;
 
   AudioServiceRepeatMode _repeatMode = AudioServiceRepeatMode.none;
 
   bool _isSwitchingTrack = false;
+  Timer? _stallTimer;
+  Duration _lastCheckedPosition = Duration.zero;
+  int _stallTicks = 0;
+  int _bufferingTicks = 0;
+  bool _playbackStarted = false;
+  
+  // Callback to fetch a fresh URL from the Service when needed (JIT)
+  Future<String?> Function(String songId)? onGetFreshUrl;
 
   AudioPlayerHandler() {
+    _initAudioSession();
+    _setupPlayerListeners();
+    _startHeartbeat();
+  }
+
+  void _setupPlayerListeners() {
     _player.setAudioContext(
-      AudioContext(
-        android: const AudioContextAndroid(
+      ap.AudioContext(
+        android: const ap.AudioContextAndroid(
           isSpeakerphoneOn: false,
           stayAwake: true,
-          contentType: AndroidContentType.music,
-          usageType: AndroidUsageType.media,
-          audioFocus: AndroidAudioFocus.gain,
+          contentType: ap.AndroidContentType.music,
+          usageType: ap.AndroidUsageType.media,
+          audioFocus: ap.AndroidAudioFocus.gain,
         ),
-        iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.playback,
+        iOS: ap.AudioContextIOS(
+          category: ap.AVAudioSessionCategory.playback,
           options: const {},
         ),
       ),
     );
 
-    _player.setReleaseMode(ReleaseMode.stop);
+    _player.setReleaseMode(ap.ReleaseMode.stop);
 
     _player.onPlayerComplete.listen((_) async {
-      // Give native player a short time to clean up
       await Future.delayed(const Duration(milliseconds: 300));
       if (_repeatMode != AudioServiceRepeatMode.one) {
         await skipToNext();
@@ -39,6 +55,18 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     });
 
     _player.onPositionChanged.listen((position) {
+      if (position > Duration.zero) {
+        if (!_playbackStarted) {
+           _playbackStarted = true;
+           debugPrint("🎵 AudioHandler: Playback CONFIRMED at $position ✅");
+           playbackState.add(playbackState.value.copyWith(
+              processingState: AudioProcessingState.ready,
+              updatePosition: position,
+           ));
+        }
+        _stallTicks = 0;
+        _bufferingTicks = 0;
+      }
       playbackState.add(playbackState.value.copyWith(updatePosition: position));
     });
 
@@ -49,20 +77,16 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
       }
     });
 
-    _player.onLog.listen((log) {
-      if (log.contains('Source set successfully') || log.contains('Buffering')) {
-         // Silently handle
-      }
-    });
-
     _player.onPlayerStateChanged.listen((state) {
-      // If we are actively switching tracks, don't let it drop to idle/stopped
-      // as that causes notification flickering.
-      if (_isSwitchingTrack && (state == PlayerState.stopped || state == PlayerState.completed)) {
-        return;
+      // CRITICAL: Block all native state updates during track switching
+      // or if the session is logically in buffering state to prevent clearing notification
+      if (_isSwitchingTrack || playbackState.value.processingState == AudioProcessingState.buffering) {
+        if (state == ap.PlayerState.stopped || state == ap.PlayerState.completed) {
+          return;
+        }
       }
 
-      final playing = state == PlayerState.playing;
+      final playing = state == ap.PlayerState.playing;
       playbackState.add(
         playbackState.value.copyWith(
           playing: playing,
@@ -72,25 +96,87 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
             MediaControl.skipToNext,
           ],
           processingState: {
-            PlayerState.stopped: AudioProcessingState.idle,
-            PlayerState.playing: AudioProcessingState.ready,
-            PlayerState.paused: AudioProcessingState.ready,
-            PlayerState.completed: AudioProcessingState.completed,
-            PlayerState.disposed: AudioProcessingState.idle,
+            ap.PlayerState.stopped: AudioProcessingState.idle,
+            ap.PlayerState.playing: AudioProcessingState.ready,
+            ap.PlayerState.paused: AudioProcessingState.ready,
+            ap.PlayerState.completed: AudioProcessingState.completed,
+            ap.PlayerState.disposed: AudioProcessingState.idle,
           }[state]!,
         ),
       );
     });
   }
 
+  void _startHeartbeat() {
+    _stallTimer?.cancel();
+    _stallTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
+       if (_isSwitchingTrack) return;
+
+       final state = playbackState.value;
+       final playerState = _player.state;
+       final isNativePlaying = playerState == ap.PlayerState.playing;
+
+       if (state.playing && state.processingState == AudioProcessingState.buffering) {
+         _bufferingTicks++;
+         if (_bufferingTicks >= 10) { 
+           debugPrint("🚨 AudioHandler: INITIAL BUFFERING TIMEOUT! Re-creating player...");
+           _bufferingTicks = 0;
+           await _recreatePlayerAndRetry();
+         }
+       } else {
+         _bufferingTicks = 0;
+       }
+
+       if (state.playing && state.processingState == AudioProcessingState.ready) {
+         final currentPos = state.position;
+         if (currentPos == _lastCheckedPosition && currentPos > Duration.zero) {
+           _stallTicks++;
+           if (_stallTicks >= 5) { 
+             debugPrint("🚨 AudioHandler: GHOST STALL detected! Full reset...");
+             playbackState.add(state.copyWith(processingState: AudioProcessingState.buffering));
+             _stallTicks = 0;
+             await _recreatePlayerAndRetry();
+           }
+         } else {
+           _stallTicks = 0;
+         }
+         _lastCheckedPosition = currentPos;
+       }
+
+       if (state.playing && !isNativePlaying && _playbackStarted) {
+          debugPrint("🚨 AudioHandler: Native Pause Sync Fix.");
+          playbackState.add(state.copyWith(playing: false));
+       }
+    });
+  }
+
+  Future<void> _recreatePlayerAndRetry() async {
+    debugPrint("🔥 AudioHandler: KILLING and RE-CREATING player instance to clear native hang 🔥");
+    try {
+      await _player.stop();
+      await _player.dispose();
+    } catch (_) {}
+    
+    _player = ap.AudioPlayer();
+    _setupPlayerListeners();
+    await _playCurrent();
+  }
+
+  Future<void> _initAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+  }
+
+  String? get currentSongTitle => mediaItem.value?.title;
+
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
     _repeatMode = repeatMode;
     playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
     if (repeatMode == AudioServiceRepeatMode.one) {
-      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.setReleaseMode(ap.ReleaseMode.loop);
     } else {
-      await _player.setReleaseMode(ReleaseMode.stop);
+      await _player.setReleaseMode(ap.ReleaseMode.stop);
     }
   }
 
@@ -143,9 +229,9 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
         final url = item.extras?['url'] as String?;
         if (url != null && url.isNotEmpty) {
           if (url.startsWith('http')) {
-            await _player.setSource(UrlSource(url));
+            await _player.setSource(ap.UrlSource(url));
           } else {
-            await _player.setSource(DeviceFileSource(url));
+            await _player.setSource(ap.DeviceFileSource(url));
           }
         }
       } catch (e) {
@@ -171,55 +257,105 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
     if (_queue.isEmpty || _index < 0 || _index >= _queue.length) return;
 
     final item = _queue[_index];
-    _isSwitchingTrack = true; // Block idle state updates
-
-    debugPrint("🎵 AudioHandler: Setting mediaItem to ${item.title}");
-    mediaItem.add(item);
-
-    // Promptly set state to buffering so notification title updates but keeps 'busy' state
-    playbackState.add(
-      playbackState.value.copyWith(
-        playing: true, // Keep it true to maintain notification presence
-        processingState: AudioProcessingState.buffering,
-        controls: [
-          MediaControl.skipToPrevious,
-          MediaControl.pause, // Show pause while buffering
-          MediaControl.skipToNext,
-        ],
-      ),
-    );
+    _isSwitchingTrack = true; // Block native state updates
 
     try {
-      final url = item.extras?['url'] as String?;
+      debugPrint("🎵 AudioHandler: ATOMIC START for ${item.title}");
+      
+      // 1. Set MediaItem IMMEDIATELY for the system
+      mediaItem.add(item);
 
-      if (url != null && url.isNotEmpty) {
-        // Ensure the old stream is stopped before playing new audio
+      // 2. Stop/Release previous content first (native reset)
+      try {
         await _player.stop();
-        
-        if (url.startsWith('http')) {
-          await _player.play(UrlSource(url));
-        } else {
-          await _player.play(DeviceFileSource(url));
-        }
+        await _player.release(); 
+      } catch (e) {
+         debugPrint("Note: Native reset failed (non-critical): $e");
       }
 
-      // Finish switching
-      _isSwitchingTrack = false;
-      
+      // 3. IMMEDIATELY RE-ASSERT the Media Session after native reset
+      // This ensures the OS never thinks playback has stopped.
       playbackState.add(
         playbackState.value.copyWith(
           playing: true,
+          processingState: AudioProcessingState.buffering,
+          controls: [
+            MediaControl.skipToPrevious,
+            MediaControl.pause, 
+            MediaControl.skipToNext,
+          ],
           systemActions: const {
             MediaAction.seek,
             MediaAction.seekForward,
             MediaAction.seekBackward,
           },
-          processingState: AudioProcessingState.ready,
         ),
       );
+
+      // 4. Ensure Audio Session is active
+      final session = await AudioSession.instance;
+      await session.setActive(true);
+
+      String? url = item.extras?['url'] as String?;
+
+      // 5. JIT URL REFRESH (Async heavy lifting)
+      if (url != null && url.startsWith('http') && onGetFreshUrl != null) {
+        debugPrint("🎵 AudioHandler: Refreshing URL for ${item.title}...");
+        final freshUrl = await onGetFreshUrl!(item.id);
+        if (freshUrl != null && freshUrl.isNotEmpty) {
+          url = freshUrl;
+          final updatedItem = item.copyWith(
+            extras: {...item.extras ?? {}, 'url': freshUrl},
+          );
+          _queue[_index] = updatedItem;
+          // Redundant update to ensure title/artwork is still there
+          mediaItem.add(updatedItem); 
+        }
+      }
+
+      if (url != null && url.isNotEmpty) {
+        final cacheBustUrl = url.contains('?') 
+          ? "$url&cb=${DateTime.now().millisecondsSinceEpoch}"
+          : "$url?cb=${DateTime.now().millisecondsSinceEpoch}";
+        
+        debugPrint("🎵 AudioHandler: Native Play trigger...");
+        
+        _tracksPlayedCount++;
+        if (_tracksPlayedCount >= 10) { // Increased to 10 for better stability
+          _tracksPlayedCount = 0;
+          await _player.dispose();
+          _player = ap.AudioPlayer();
+          _setupPlayerListeners();
+        }
+
+        if (url.startsWith('http')) {
+          await _player.play(ap.UrlSource(cacheBustUrl));
+        } else {
+          await _player.play(ap.DeviceFileSource(url));
+        }
+      }
+
+      // Reset Health Tracking
+      _lastCheckedPosition = Duration.zero;
+      _stallTicks = 0;
+      _bufferingTicks = 0;
+      _playbackStarted = false;
+
+      // Finish atomic cycle
+      _isSwitchingTrack = false;
+      
+      // Ensure we stay in BUFFERING state until real movement starts
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.buffering,
+        playing: true,
+      ));
     } catch (e) {
       _isSwitchingTrack = false;
-      debugPrint("Error playing audio: $e");
+      debugPrint("🚨 AudioHandler: CRITICAL ERROR playing audio: $e");
+      playbackState.add(playbackState.value.copyWith(
+        processingState: AudioProcessingState.idle,
+        playing: false,
+      ));
     }
   }
 
@@ -236,6 +372,8 @@ class AudioPlayerHandler extends BaseAudioHandler with SeekHandler {
 
   @override
   Future<void> stop() async {
+    _stallTimer?.cancel();
+    _stallTimer = null;
     await _player.stop();
     playbackState.add(
       playbackState.value.copyWith(

@@ -19,18 +19,7 @@ class MigrationService {
   /// 5. SharedPreferences data is NOT deleted (kept as fallback)
   Future<void> migrateIfNeeded(String email) async {
     try {
-      // Check if already migrated in Firestore
-      final profileDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(email)
-        .collection('profile')
-        .doc('data')
-        .get();
-
-      // NOTE: We've temporarily disabled the early return to force a full re-sync 
-      // of all 84 items and legacy data into Firestore.
-      // if (profileDoc.data()?['migrationCompleted'] == true) return;
-
+      // NOTE: We're performing a Forced Sync to ensure all 84 items are captured.
       debugPrint('MIGRATION: Starting Forced Sync for $email...');
 
       // Run migration for user-scoped data only

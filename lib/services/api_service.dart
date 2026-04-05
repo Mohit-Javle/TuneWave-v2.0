@@ -19,37 +19,31 @@ class ApiService {
   // Search for songs
   Future<List<SongModel>> searchSongs(String query) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl?__call=search.getResults&p=1&q=$query&_format=json&_marker=0&api_version=4&ctx=web6dot0');
-      
-      debugPrint("ApiService fetching: $uri");
+      final success = await _getWithTolerantFallback(
+        officialCall: 'search.getResults',
+        params: {'q': query, 'p': '1'},
+        mirrorPath: '/api/search/songs',
+        mirrorParams: {'query': query},
+      );
 
-      final response = await http.get(uri, headers: {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      });
-
-      if (response.statusCode == 200) {
-        // Handle potential invalid JSON responses from official API
-        var jsonString = response.body;
-        // debugPrint("Response body len: ${jsonString.length}");
-
-        try {
-          final data = json.decode(jsonString);
-          
-          if (data['results'] != null) {
-            final List results = data['results'];
-            return results.map((item) {
-              String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
-              String decryptedUrl = _decryptUrl(encryptedUrl);
-              return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
-            }).toList();
-          }
-        } catch (e) {
-          debugPrint("JSON Parsing error: $e");
+      if (success != null) {
+        final data = json.decode(success['body']);
+        
+        // Handle Official Format
+        if (data is Map && data['results'] != null) {
+          final List results = data['results'];
+          return results.map((item) {
+            String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
+            String decryptedUrl = _decryptUrl(encryptedUrl);
+            return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
+          }).toList();
         }
-      } else {
-        debugPrint("API Error: ${response.statusCode}");
+        
+        // Handle Community Format (saavn.dev / vercel mirror)
+        if (data is Map && data['data'] != null && data['data']['results'] != null) {
+           final List results = data['data']['results'];
+           return results.map((item) => SongModel.fromOfficialJson(item)).toList();
+        }
       }
       return [];
     } catch (e) {
@@ -58,23 +52,107 @@ class ApiService {
     }
   }
 
+  // --- FAULT TOLERANCE ENGINE ---
+  
+  static final List<Map<String, String>> _identities = [
+     {
+       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+       "Referer": "https://www.jiosaavn.com/",
+       "Accept-Language": "en-US,en;q=0.9",
+     },
+     {
+       "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+       "Accept": "application/json",
+     },
+     {
+       "User-Agent": "JioSaavn/9.11.1 (Android; 14; Mobile)",
+       "X-Requested-With": "com.jio.media.jiobeats",
+     }
+  ];
+
+  Future<Map<String, dynamic>?> _getWithTolerantFallback({
+    required String officialCall,
+    Map<String, String> params = const {},
+    String? mirrorPath,
+    Map<String, String> mirrorParams = const {},
+  }) async {
+    // 1. Try Official API with different identities
+    for (var headers in _identities) {
+      try {
+        final queryParams = {
+          '__call': officialCall,
+          '_format': 'json',
+          '_marker': '0',
+          'api_version': '4',
+          'ctx': 'web6dot0',
+          ...params,
+        };
+        
+        final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+        debugPrint("ApiService: Attempting Official with ID ${_identities.indexOf(headers)}: $uri");
+        
+        final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+        
+        if (response.statusCode == 200 && !response.body.contains("Access Denied")) {
+           return {'body': response.body, 'source': 'official'};
+        }
+        debugPrint("ApiService: ID failed with status ${response.statusCode}");
+      } catch (e) {
+        debugPrint("ApiService: Identity attempt failed: $e");
+      }
+    }
+
+    // 2. Try Community Mirrors if official fails (Failover)
+    final mirrors = [
+      "https://saavn.dev",
+      "https://jiosaavn-api-tau-three.vercel.app",
+      "https://jiosaavn-api-revibe.vercel.app"
+    ];
+
+    if (mirrorPath != null) {
+      for (var mirror in mirrors) {
+        try {
+          final uri = Uri.parse("$mirror$mirrorPath").replace(queryParameters: mirrorParams);
+          debugPrint("ApiService: Attempting Failover Mirror: $uri");
+          
+          final response = await http.get(uri).timeout(const Duration(seconds: 10));
+          if (response.statusCode == 200) {
+            return {'body': response.body, 'source': 'mirror'};
+          }
+        } catch (e) {
+          debugPrint("ApiService: Mirror failover attempt failed: $e");
+        }
+      }
+    }
+
+    return null;
+  }
+
   // Get song details (metadata and fresh URL)
   Future<SongModel?> getSongDetails(String songId) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl?__call=song.getDetails&pids=$songId&_format=json&_marker=0&api_version=4&ctx=web6dot0');
-      
-      final response = await http.get(uri, headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" 
-      });
+      final success = await _getWithTolerantFallback(
+        officialCall: 'song.getDetails',
+        params: {'pids': songId},
+        mirrorPath: '/api/songs',
+        mirrorParams: {'ids': songId},
+      );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+      if (success != null) {
+        final data = json.decode(success['body']);
+        
+        // Official format
         if (data is Map && data.containsKey(songId)) {
           final item = data[songId];
           String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
           String decryptedUrl = _decryptUrl(encryptedUrl);
           return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
+        }
+        
+        // Mirror format
+        if (data is Map && data['data'] != null && (data['data'] as List).isNotEmpty) {
+          final item = (data['data'] as List).first;
+          return SongModel.fromOfficialJson(item);
         }
       }
       return null;
@@ -87,16 +165,23 @@ class ApiService {
   // GetLyrics (Official API)
   Future<String> getLyrics(String songId) async {
     try {
-       final uri = Uri.parse(
-          '$baseUrl?__call=lyrics.getLyrics&ctx=web6dot0&api_version=4&_format=json&_marker=0&lyrics_id=$songId');
-       
-       final response = await http.get(uri, headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" 
-       });
-       if (response.statusCode == 200) {
-         final data = json.decode(response.body);
-         if (data['lyrics'] != null) {
+       final success = await _getWithTolerantFallback(
+          officialCall: 'lyrics.getLyrics',
+          params: {'lyrics_id': songId},
+          mirrorPath: '/api/songs/$songId/lyrics',
+       );
+
+       if (success != null) {
+         final data = json.decode(success['body']);
+         
+         // Official format
+         if (data is Map && data['lyrics'] != null) {
            return data['lyrics'].toString().replaceAll('<br>', '\n');
+         }
+         
+         // Mirror format
+         if (data is Map && data['data'] != null && data['data']['lyrics'] != null) {
+            return data['data']['lyrics'].toString();
          }
        }
        return 'No lyrics found.';
@@ -108,24 +193,26 @@ class ApiService {
   // Search for albums
   Future<List<AlbumModel>> searchAlbums(String query) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl?__call=search.getAlbumResults&p=1&q=$query&_format=json&_marker=0&api_version=4&ctx=web6dot0');
+       final success = await _getWithTolerantFallback(
+          officialCall: 'search.getAlbumResults',
+          params: {'p': '1', 'q': query},
+          mirrorPath: '/api/search/albums',
+          mirrorParams: {'query': query},
+       );
 
-      final response = await http.get(uri, headers: {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      });
-
-      if (response.statusCode == 200) {
-        var jsonString = response.body;
-        try {
-          final data = json.decode(jsonString);
-          if (data['results'] != null) {
-            final List results = data['results'];
-            return results.map((item) => AlbumModel.fromOfficialJson(item)).toList();
-          }
-        } catch (e) {
-          debugPrint("JSON Parsing error (Albums): $e");
+      if (success != null) {
+        final data = json.decode(success['body']);
+        
+        // Official
+        if (data is Map && data['results'] != null) {
+          final List results = data['results'];
+          return results.map((item) => AlbumModel.fromOfficialJson(item)).toList();
+        }
+        
+        // Mirror
+        if (data is Map && data['data'] != null && data['data']['results'] != null) {
+          final List results = data['data']['results'];
+          return results.map((item) => AlbumModel.fromOfficialJson(item)).toList();
         }
       }
       return [];
@@ -138,24 +225,26 @@ class ApiService {
   // Search for artists
   Future<List<ArtistModel>> searchArtists(String query) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl?__call=search.getArtistResults&p=1&q=$query&_format=json&_marker=0&api_version=4&ctx=web6dot0');
+      final success = await _getWithTolerantFallback(
+        officialCall: 'search.getArtistResults',
+        params: {'p': '1', 'q': query},
+        mirrorPath: '/api/search/artists',
+        mirrorParams: {'query': query},
+      );
 
-      final response = await http.get(uri, headers: {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      });
-
-      if (response.statusCode == 200) {
-        var jsonString = response.body;
-        try {
-          final data = json.decode(jsonString);
-          if (data['results'] != null) {
-            final List results = data['results'];
-            return results.map((item) => ArtistModel.fromOfficialJson(item)).toList();
-          }
-        } catch (e) {
-          debugPrint("JSON Parsing error (Artists): $e");
+      if (success != null) {
+        final data = json.decode(success['body']);
+        
+        // Official
+        if (data is Map && data['results'] != null) {
+          final List results = data['results'];
+          return results.map((item) => ArtistModel.fromOfficialJson(item)).toList();
+        }
+        
+        // Mirror
+        if (data is Map && data['data'] != null && data['data']['results'] != null) {
+          final List results = data['data']['results'];
+          return results.map((item) => ArtistModel.fromOfficialJson(item)).toList();
         }
       }
       return [];
@@ -168,22 +257,21 @@ class ApiService {
   // Get Artist Details (Top Songs & Albums)
   Future<Map<String, dynamic>> getArtistDetails(String artistId) async {
     try {
-      final uri = Uri.parse(
-          '$baseUrl?__call=artist.getArtistPageDetails&artistId=$artistId&_format=json&_marker=0&api_version=4&ctx=web6dot0');
+      final success = await _getWithTolerantFallback(
+        officialCall: 'artist.getArtistPageDetails',
+        params: {'artistId': artistId},
+        mirrorPath: '/api/artists',
+        mirrorParams: {'id': artistId},
+      );
 
-      final response = await http.get(uri, headers: {
-        "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-      });
-
-      if (response.statusCode == 200) {
-        var jsonString = response.body;
-        final data = json.decode(jsonString);
+      if (success != null) {
+        final data = json.decode(success['body']);
         
         List<SongModel> topSongs = [];
         List<AlbumModel> albums = [];
 
-        if (data['topSongs'] != null) {
+        // Official
+        if (data is Map && data['topSongs'] != null) {
           final List songsList = data['topSongs'];
           topSongs = songsList.map((item) {
              String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
@@ -191,15 +279,27 @@ class ApiService {
              return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
           }).toList();
         }
+        
+        // Mirror
+        if (data is Map && data['data'] != null && data['data']['topSongs'] != null) {
+           final List songsList = data['data']['topSongs'];
+           topSongs = songsList.map((item) => SongModel.fromOfficialJson(item)).toList();
+        }
 
-        if (data['topAlbums'] != null) {
+        if (data is Map && data['topAlbums'] != null) {
           final List albumsList = data['topAlbums'];
           albums = albumsList.map((item) => AlbumModel.fromOfficialJson(item)).toList();
         }
+        
+        if (data is Map && data['data'] != null && data['data']['topAlbums'] != null) {
+           final List albumsList = data['data']['topAlbums'];
+           albums = albumsList.map((item) => AlbumModel.fromOfficialJson(item)).toList();
+        }
 
+        final info = data['data'] ?? data;
         return {
-          'name': data['name'] ?? data['title'] ?? '',
-          'image': data['image'] ?? '',
+          'name': info['name'] ?? info['title'] ?? '',
+          'image': info['image'] is List ? (info['image'] as List).last['link'] : (info['image'] ?? ''),
           'topSongs': topSongs,
           'albums': albums,
         };
@@ -214,19 +314,30 @@ class ApiService {
   // Get Album Details
   Future<List<SongModel>> getAlbumDetails(String albumId) async {
     try {
-       final uri = Uri.parse(
-          '$baseUrl?__call=content.getAlbumDetails&albumid=$albumId&_format=json&_marker=0&api_version=4&ctx=web6dot0');
-       
-       final response = await http.get(uri);
-       if (response.statusCode == 200) {
-         final data = json.decode(response.body);
-         if (data['list'] != null) {
+       final success = await _getWithTolerantFallback(
+          officialCall: 'content.getAlbumDetails',
+          params: {'albumid': albumId},
+          mirrorPath: '/api/albums',
+          mirrorParams: {'id': albumId},
+       );
+
+       if (success != null) {
+         final data = json.decode(success['body']);
+         
+         // Official
+         if (data is Map && data['list'] != null) {
            final List list = data['list'];
            return list.map((item) {
               String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
               String decryptedUrl = _decryptUrl(encryptedUrl);
               return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
            }).toList();
+         }
+         
+         // Mirror
+         if (data is Map && data['data'] != null && data['data']['songs'] != null) {
+            final List songs = data['data']['songs'];
+            return songs.map((item) => SongModel.fromOfficialJson(item)).toList();
          }
        }
        return [];
@@ -239,27 +350,20 @@ class ApiService {
   // Get suggested songs (recommendations)
   Future<List<SongModel>> getSuggestedSongs(String songId) async {
     try {
-      // Try multiple recommender endpoints for maximum reliability
-      final endpoints = [
-        '$baseUrl?__call=recommender.getSuggestedSongs&_format=json&_marker=0&api_version=4&ctx=web6dot0&pid=$songId',
-        '$baseUrl?__call=helper.getSuggestedSongs&_format=json&_marker=0&api_version=4&ctx=web6dot0&pids=$songId',
-      ];
-      
-      for (var url in endpoints) {
-        final uri = Uri.parse(url);
-        debugPrint("ApiService fetching recommendations from: $url");
+       final success = await _getWithTolerantFallback(
+          officialCall: 'recommender.getSuggestedSongs',
+          params: {'pid': songId},
+          mirrorPath: '/api/songs/$songId/suggestions',
+       );
 
-        final response = await http.get(uri, headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" 
-        });
-
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
+       if (success != null) {
+          final data = json.decode(success['body']);
           List? results;
+          
           if (data is List) {
             results = data;
-          } else if (data is Map && data.containsKey('songs')) {
-            results = data['songs'] as List?;
+          } else if (data is Map) {
+            results = (data['data'] as List?) ?? (data['songs'] as List?);
           }
 
           if (results != null && results.isNotEmpty) {
@@ -269,9 +373,8 @@ class ApiService {
               return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
             }).toList();
           }
-        }
-      }
-      return [];
+       }
+       return [];
     } catch (e) {
       debugPrint("Error fetching suggested songs: $e");
       return [];
@@ -284,14 +387,20 @@ class ApiService {
       final query = "${genre ?? ''} ${language ?? ''} hits".trim();
       if (query.isEmpty) return [];
 
-      final uri = Uri.parse(
-          '$baseUrl?__call=search.getResults&p=1&q=$query&_format=json&_marker=0&api_version=4&ctx=web6dot0');
-      
-      final response = await http.get(uri);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['results'] != null) {
-          final List results = data['results'];
+       final success = await _getWithTolerantFallback(
+          officialCall: 'search.getResults',
+          params: {'q': query, 'p': '1'},
+          mirrorPath: '/api/search/songs',
+          mirrorParams: {'query': query},
+       );
+
+      if (success != null) {
+        final data = json.decode(success['body']);
+        List? results;
+        if (data is Map) {
+          results = data['results'] ?? data['data']?['results'];
+        }
+        if (results != null) {
           return results.map((item) {
             String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
             String decryptedUrl = _decryptUrl(encryptedUrl);

@@ -13,7 +13,8 @@ import 'download_service.dart';
 import 'dart:async';
 
 import 'api_service.dart';
-export '../models/song_model.dart'; 
+import 'audio_handler.dart';
+export '../models/song_model.dart';
 
 class MusicService with ChangeNotifier, WidgetsBindingObserver {
   final AudioHandler _audioHandler; // Use base handler
@@ -69,6 +70,40 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
   MusicService(this._audioHandler, this._downloadService, this._apiService); // Inject services
 
   void init() {
+    // Link JIT URL Refresh callback to the AudioHandler
+    if (_audioHandler is AudioPlayerHandler) {
+      _audioHandler.onGetFreshUrl = (songId) async {
+        debugPrint("🎵 MusicService: JIT Refresh request for $songId");
+        
+        // --- ATOMIC URL RETRY LOGIC ---
+        for (int attempt = 1; attempt <= 2; attempt++) {
+          try {
+            final timeoutDuration = Duration(seconds: attempt == 1 ? 5 : 10);
+            debugPrint("🎵 MusicService: Fetching fresh URL (Attempt $attempt, timeout: ${timeoutDuration.inSeconds}s)...");
+            
+            final freshSong = await _apiService.getSongDetails(songId).timeout(timeoutDuration);
+            
+            if (freshSong != null) {
+              // Update the track in our local playlist cache as well
+              final idx = _playlist.indexWhere((s) => s.id == songId);
+              if (idx != -1) {
+                _playlist[idx] = freshSong;
+              }
+              debugPrint("🎵 MusicService: JIT Refresh SUCCESS on attempt $attempt");
+              return freshSong.downloadUrl;
+            }
+          } catch (e) {
+            debugPrint("⚠️ MusicService: URL Refresh attempt $attempt failed: $e");
+            if (attempt == 2) break;
+            await Future.delayed(const Duration(milliseconds: 500)); // Small pause before retry
+          }
+        }
+        
+        debugPrint("❌ MusicService: URL Refresh FAILED after all attempts. Falling back to cache.");
+        return null; // Fallback to existing URL if refresh fails
+      };
+    }
+
     // Listen to AudioHandler state
     _audioHandler.playbackState.listen((playbackState) {
       bool wasPlaying = isPlayingNotifier.value;
