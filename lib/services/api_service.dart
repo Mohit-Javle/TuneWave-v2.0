@@ -28,21 +28,35 @@ class ApiService {
 
       if (success != null) {
         final data = json.decode(success['body']);
+        List? results;
         
-        // Handle Official Format
-        if (data is Map && data['results'] != null) {
-          final List results = data['results'];
-          return results.map((item) {
-            String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
-            String decryptedUrl = _decryptUrl(encryptedUrl);
-            return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl);
-          }).toList();
+        // 1. Official Format or Direct Results
+        if (data is Map) {
+          if (data['results'] != null) {
+            results = data['results'] as List;
+          } else if (data['data'] != null) {
+            // 2. Community Format (data.results)
+            if (data['data'] is Map && data['data']['results'] != null) {
+              results = data['data']['results'] as List;
+            } else if (data['data'] is List) {
+              // 3. Simple list format
+              results = data['data'] as List;
+            }
+          }
+        } else if (data is List) {
+          results = data;
         }
-        
-        // Handle Community Format (saavn.dev / vercel mirror)
-        if (data is Map && data['data'] != null && data['data']['results'] != null) {
-           final List results = data['data']['results'];
-           return results.map((item) => SongModel.fromOfficialJson(item)).toList();
+
+        if (results != null) {
+          return results.map((item) {
+            // Use decrypted URL for Official format
+            String? decryptedUrl;
+            if (success['source'] == 'official') {
+              String encryptedUrl = item['more_info']?['encrypted_media_url'] ?? '';
+              decryptedUrl = _decryptUrl(encryptedUrl);
+            }
+            return SongModel.fromOfficialJson(item, decryptedUrl: decryptedUrl ?? '');
+          }).toList();
         }
       }
       return [];
@@ -91,10 +105,21 @@ class ApiService {
         final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
         debugPrint("ApiService: Attempting Official with ID ${_identities.indexOf(headers)}: $uri");
         
-        final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 8));
+        final timeoutDuration = Duration(seconds: _identities.indexOf(headers) == 0 ? 6 : 10);
+        final response = await http.get(uri, headers: headers).timeout(timeoutDuration);
         
         if (response.statusCode == 200 && !response.body.contains("Access Denied")) {
-           return {'body': response.body, 'source': 'official'};
+           // If official search returns empty, it might be restricted. Continue to mirrors.
+           if (officialCall.contains('search') && (response.body.contains('"results":[]') || response.body.contains('"results":null'))) {
+              debugPrint("ApiService: Official API returned empty results. Moving to failover...");
+           } else {
+              return {'body': response.body, 'source': 'official'};
+           }
+        }
+        
+        if (response.body.contains("Access Denied")) {
+           debugPrint("ApiService: Official API BLOCKED with Access Denied. Skipping further IDs for this call.");
+           break; // IMMEDIATELY jump to mirrors to save time
         }
         debugPrint("ApiService: ID failed with status ${response.statusCode}");
       } catch (e) {
@@ -104,8 +129,8 @@ class ApiService {
 
     // 2. Try Community Mirrors if official fails (Failover)
     final mirrors = [
+      "https://saavn.sumit.co",
       "https://saavn.dev",
-      "https://jiosaavn-api-tau-three.vercel.app",
       "https://jiosaavn-api-revibe.vercel.app"
     ];
 

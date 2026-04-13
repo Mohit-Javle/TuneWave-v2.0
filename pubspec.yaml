@@ -38,6 +38,10 @@ dependencies:
   image_picker: ^1.0.7
   provider: ^6.1.2
   uuid: ^4.4.0 
+  csv: ^6.0.0
+  string_similarity: ^2.1.1
+  url_launcher: ^6.3.2
+  flutter_local_notifications: 17.2.3
   dart_des: ^1.0.0 # Switching to this for DES
   # encrypt: ^5.0.3 # Removing/commenting out if causing conflicts, but can keep.
   # The following adds the Cupertino Icons font to your application.
@@ -61,10 +65,6 @@ dependencies:
   cloud_firestore: ^5.4.4
   firebase_storage: ^12.3.2
   file_picker: ^10.3.10
-  csv: 6.0.0
-  string_similarity: ^2.1.1
-  url_launcher: ^6.3.2
-  flutter_local_notifications: 17.2.3
   scrollable_positioned_list: ^0.3.8
 
 dev_dependencies:

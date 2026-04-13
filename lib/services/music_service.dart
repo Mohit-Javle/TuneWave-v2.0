@@ -78,7 +78,7 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
         // --- ATOMIC URL RETRY LOGIC ---
         for (int attempt = 1; attempt <= 2; attempt++) {
           try {
-            final timeoutDuration = Duration(seconds: attempt == 1 ? 5 : 10);
+            final timeoutDuration = Duration(seconds: attempt == 1 ? 15 : 25); // Increased for full rotation
             debugPrint("🎵 MusicService: Fetching fresh URL (Attempt $attempt, timeout: ${timeoutDuration.inSeconds}s)...");
             
             final freshSong = await _apiService.getSongDetails(songId).timeout(timeoutDuration);
