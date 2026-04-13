@@ -232,7 +232,7 @@ class SpotifyImportService extends ChangeNotifier {
           status: ImportStatus.searching,
           total: songsToSearch.length,
           current: (i + batch.length).clamp(0, songsToSearch.length),
-          currentSongName: batch.last['track']!,
+          currentSongName: batch.isNotEmpty ? batch.last['track']! : '',
         );
 
         // Batch delay
@@ -268,49 +268,147 @@ class SpotifyImportService extends ChangeNotifier {
   }
 
   Future<SongModel?> _searchAndMatch(String track, String artist) async {
-    final query = _normalize("$track $artist");
-    final results = await _apiService.searchSongs(query);
+    // Attempt 1: Track + Artist (Standard)
+    final query1 = "$track $artist";
+    SongModel? match = await _performSearchAndMatch(query1, track, artist);
+    if (match != null) return match;
 
-    if (results.isEmpty) return null;
+    // Split artists for more granular fallbacks
+    // Added semicolon (;) to splitting logic
+    final artists = artist.split(RegExp(r'[,\&\/\-\;]')).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
-    SongModel? bestMatch;
-    double highestScore = 0;
-
-    for (var result in results) {
-      final score = _calculateMatchScore(track, artist, result.name, result.artist);
-      if (score > highestScore) {
-        highestScore = score;
-        bestMatch = result;
-      }
+    // Attempt 2: Track + Primary Artist (First one)
+    if (artists.isNotEmpty) {
+      final firstArtist = artists.first;
+      debugPrint("🎵 SpotifyImport: Fallback 1 - Searching for track + primary artist: $track $firstArtist");
+      match = await _performSearchAndMatch("$track $firstArtist", track, artist);
+      if (match != null) return match;
     }
 
-    // Threshold
-    if (highestScore > 0.75) {
-      return bestMatch;
+    // Attempt 3: Just Track (Fallback for when artists are completely mismatched)
+    // Stage 2: Lowered threshold to 3 characters for songs like "Shor"
+    if (track.length >= 3) {
+      debugPrint("🎵 SpotifyImport: Fallback 2 - Searching for just track: $track");
+      match = await _performSearchAndMatch(track, track, artist);
+      if (match != null) return match;
+    }
+
+    // Attempt 4: Track + Second Artist (In case the featured artist is the one listed primary on Saavn)
+    if (artists.length > 1) {
+      final secondArtist = artists[1];
+      debugPrint("🎵 SpotifyImport: Fallback 3 - Searching for track + second artist: $track $secondArtist");
+      match = await _performSearchAndMatch("$track $secondArtist", track, artist);
+      if (match != null) return match;
     }
     
     return null;
   }
 
-  double _calculateMatchScore(String targetTrack, String targetArtist, String resTrack, String resArtist) {
-    final nTargetTrack = _normalize(targetTrack);
-    final nTargetArtist = _normalize(targetArtist);
-    final nResTrack = _normalize(resTrack);
-    final nResArtist = _normalize(resArtist);
+  Future<SongModel?> _performSearchAndMatch(String query, String targetTrack, String targetArtist) async {
+    final normalizedQuery = _normalize(query, isSearch: true);
+    final results = await _apiService.searchSongs(normalizedQuery);
 
-    final trackScore = nTargetTrack.similarityTo(nResTrack);
-    final artistScore = nTargetArtist.similarityTo(nResArtist);
+    if (results.isEmpty) return null;
 
-    // Give track name more weight
-    return (trackScore * 0.7) + (artistScore * 0.3);
+    SongModel? bestMatch;
+    double highestScore = 0;
+    String debugInfo = "";
+
+    for (var result in results) {
+      final scoreData = _calculateMatchScoreDetailed(targetTrack, targetArtist, result.name, result.artist);
+      final score = scoreData['total']!;
+      
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = result;
+        debugInfo = "Track: ${scoreData['track']?.toStringAsFixed(2)}, Artist: ${scoreData['artist']?.toStringAsFixed(2)}";
+      }
+    }
+
+    if (highestScore > 0.75) {
+       debugPrint("🎵 SpotifyImport: Match found! [${bestMatch?.name}] by [${bestMatch?.artist}] (Score: ${highestScore.toStringAsFixed(2)}, $debugInfo)");
+       return bestMatch;
+    } else if (bestMatch != null) {
+       debugPrint("🎵 SpotifyImport: Weak match rejected [${bestMatch.name}] by [${bestMatch.artist}] (Score: ${highestScore.toStringAsFixed(2)}, $debugInfo)");
+    }
+    
+    return null;
   }
 
-  String _normalize(String input) {
-    return input.toLowerCase()
-        .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '') // Remove anything in parens/brackets
-        .replaceAll(RegExp(r' - .*'), '') // Remove everything after dash
-        .replaceAll(RegExp(r'feat\.|ft\.|official|audio|video|lyrics|remix|mix|edit', caseSensitive: false), '')
-        .replaceAll(RegExp(r'[^\w\s]'), '') // Remove special chars
+  Map<String, double> _calculateMatchScoreDetailed(String targetTrack, String targetArtist, String resTrack, String resArtist) {
+    final nTargetTrack = _normalize(targetTrack);
+    final nResTrack = _normalize(resTrack);
+    
+    // 1. Track Name Score
+    final trackScore = nTargetTrack.similarityTo(nResTrack);
+
+    // 2. Artist Overlap Check
+    // Added 'feat', 'ft', and semicolon (;) to splitting logic
+    final artistSplitPattern = RegExp(r'[,\&\/\-\;]|feat\.?|ft\.?', caseSensitive: false);
+    final targetArtists = targetArtist.toLowerCase().split(artistSplitPattern).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final resArtists = resArtist.toLowerCase().split(artistSplitPattern).map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+    double artistScore = 0;
+    bool anyOverlap = false;
+
+    for (var ta in targetArtists) {
+       for (var ra in resArtists) {
+         final sim = ta.similarityTo(ra);
+         // More lenient artist match (0.80)
+         if (sim > 0.80 || ta.contains(ra) || ra.contains(ta)) {
+           anyOverlap = true;
+           artistScore = sim.clamp(artistScore, 1.0);
+         }
+       }
+    }
+
+    if (!anyOverlap) {
+      artistScore = targetArtist.toLowerCase().similarityTo(resArtist.toLowerCase()) * 0.8;
+    } else {
+      artistScore = (artistScore + 0.4).clamp(0.0, 1.0);
+    }
+
+    double finalScore;
+
+    // Phase 2 logic for short names
+    if (nTargetTrack.length <= 4 && trackScore > 0.9) {
+      if (artistScore < 0.1) {
+        finalScore = 0.0;
+      } else {
+        finalScore = (trackScore * 0.5) + (artistScore * 0.5);
+      }
+    } else {
+      if (artistScore < 0.1 && trackScore < 0.98) {
+        finalScore = 0.0;
+      } else {
+        finalScore = (trackScore * 0.6) + (artistScore * 0.4);
+      }
+    }
+
+    return {
+      'total': finalScore,
+      'track': trackScore,
+      'artist': artistScore,
+    };
+  }
+
+  double _calculateMatchScore(String targetTrack, String targetArtist, String resTrack, String resArtist) {
+    return _calculateMatchScoreDetailed(targetTrack, targetArtist, resTrack, resArtist)['total']!;
+  }
+
+  String _normalize(String input, {bool isSearch = false}) {
+    String normalized = input.toLowerCase()
+        .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '') // remove (feat...) [remix...]
+        .replaceAll(RegExp(r'official|audio|video|lyrics|video|latest', caseSensitive: false), '')
+        .replaceAll(RegExp(r'[^\w\s]'), '') // remove special chars
         .trim();
+    
+    // Don't remove 'remix' or 'edit' for search queries, as users often want specifics
+    if (isSearch) {
+       // Keep original to some extent but normalized
+       return input.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
+    }
+    
+    return normalized;
   }
 }
