@@ -145,15 +145,14 @@ class _MusicToastState extends State<MusicToast> with TickerProviderStateMixin {
         bgColor = const Color(0xFFF44336);
         break;
       case ToastType.info:
-        // Slightly "muted" coral for removals to distinguish from "Added" orange
-        bgColor = widget.isBottom ? const Color(0xFFE57373) : const Color(0xFFFF6600);
+        bgColor = const Color(0xFFFF6600);
         break;
     }
 
     Widget content = Container(
       margin: widget.isBottom 
           ? const EdgeInsets.fromLTRB(24, 0, 24, 110)
-          : const EdgeInsets.fromLTRB(24, 48, 24, 0),
+          : const EdgeInsets.fromLTRB(24, 80, 24, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: bgColor,

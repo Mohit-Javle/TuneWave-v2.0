@@ -116,9 +116,9 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
         _stopListeningTimeTracking();
       }
 
-      if (playbackState.processingState == AudioProcessingState.completed || 
-          (playbackState.processingState == AudioProcessingState.idle && !playbackState.playing)) {
-         // Use a small cooldown to avoid double-triggers
+      if (playbackState.processingState == AudioProcessingState.completed) {
+         // In just_audio, completed means the ENTIRE sequence is done.
+         // This is the perfect time to trigger autoplay.
          if (!_isAutoplayTriggering) {
             _handleQueueEnd();
          }
@@ -320,7 +320,7 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
                 
                 // Update audio engine with fresh URL
                 final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
-                final dynamic handler = _audioHandler;
+                final handler = _audioHandler as AudioPlayerHandler;
                 handler.preparePlaylist(mediaItems, actualIdx != -1 ? actualIdx : index);
                 
                 // Re-sync with handler positions (wait for source setup to complete)
@@ -332,7 +332,7 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
             } else {
                 // Fallback if API fails
                 final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
-                final dynamic handler = _audioHandler;
+                final handler = _audioHandler as AudioPlayerHandler;
                 handler.preparePlaylist(mediaItems, index);
             }
           });
@@ -550,9 +550,17 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
         : startIndex;
     
     // Convert to MediaItems
-    final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
+    final mediaItems = _playlist.map((song) {
+      final mediaItem = _createMediaItem(song);
+      final url = mediaItem.extras?['url'] as String?;
+      if (url == null || url.isEmpty) {
+        debugPrint("⚠️ MusicService: Song ${song.name} has EMPTY URL!");
+      }
+      return mediaItem;
+    }).toList();
 
-    (_audioHandler as dynamic).setPlaylist(mediaItems, actualIndex >= 0 ? actualIndex : 0);
+    debugPrint("🎵 MusicService: Sending ${mediaItems.length} items to handler. First URL: ${mediaItems.first.extras?['url']}");
+    (_audioHandler as AudioPlayerHandler).setPlaylist(mediaItems, actualIndex >= 0 ? actualIndex : 0);
   }
 
   Future<void> play() async {
@@ -588,25 +596,10 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
   void toggleShuffle() {
     isShuffleNotifier.value = !isShuffleNotifier.value;
     
-    if (_originalPlaylist.isEmpty) return;
+    _audioHandler.setShuffleMode(
+      isShuffleNotifier.value ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none
+    );
     
-    final currentSong = currentSongNotifier.value;
-    if (currentSong == null) return;
-    
-    if (isShuffleNotifier.value) {
-      // Enable shuffle: create shuffled playlist with current song first
-      final currentIndex = _originalPlaylist.indexWhere((s) => s.id == currentSong.id);
-      _playlist = _createShuffledPlaylist(_originalPlaylist, currentIndex >= 0 ? currentIndex : 0);
-    } else {
-      // Disable shuffle: restore original order
-      _playlist = List.from(_originalPlaylist);
-    }
-    
-    // Reload the playlist with current song
-    final newIndex = _playlist.indexWhere((s) => s.id == currentSong.id);
-    final mediaItems = _playlist.map((song) => _createMediaItem(song)).toList();
-    
-    (_audioHandler as dynamic).setPlaylist(mediaItems, newIndex >= 0 ? newIndex : 0);
     _saveStats();
     notifyListeners();
   }
@@ -638,7 +631,7 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
   Future<void> addToPlayNext(SongModel song) async {
     final mediaItem = _createMediaItem(song);
     
-    await (_audioHandler as dynamic).addToPlayNext(mediaItem);
+    await (_audioHandler as AudioPlayerHandler).addToPlayNext(mediaItem);
     
     // Update local playlist
     final currentIndex = currentQueueIndex;
@@ -648,22 +641,20 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
 
   Future<void> addToQueue(SongModel song) async {
     final mediaItem = _createMediaItem(song);
-    
-    await (_audioHandler as dynamic).addToQueue(mediaItem);
+    await (_audioHandler as AudioPlayerHandler).addQueueItem(mediaItem);
     _playlist.add(song);
     notifyListeners();
   }
 
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _playlist.length) return;
-    
-    await (_audioHandler as dynamic).removeFromQueue(index);
+    await (_audioHandler as AudioPlayerHandler).removeQueueItemAt(index);
     _playlist.removeAt(index);
     notifyListeners();
   }
 
   Future<void> skipToQueueItem(int index) async {
-    await (_audioHandler as dynamic).skipToQueueItem(index);
+    await (_audioHandler as AudioPlayerHandler).skipToQueueItem(index);
   }
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
@@ -673,17 +664,20 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
     final song = _playlist.removeAt(oldIndex);
     _playlist.insert(newIndex, song);
     
-    await (_audioHandler as dynamic).reorderQueue(oldIndex, newIndex);
+    await (_audioHandler as AudioPlayerHandler).updateQueue(
+      _playlist.map((s) => _createMediaItem(s)).toList()
+    );
     notifyListeners();
   }
 
   Future<void> clearQueue() async {
-    await (_audioHandler as dynamic).clearQueue();
+    await (_audioHandler as AudioPlayerHandler).stop();
     _playlist.clear();
     _originalPlaylist.clear();
     currentSongNotifier.value = null;
     notifyListeners();
   }
+
   @override
   void dispose() {
     // We don't own the handler, so we don't dispose it here usually, 
@@ -715,12 +709,15 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
       }
     }
     
+    final durationSeconds = int.tryParse(song.duration ?? '0') ?? 0;
+    
     return MediaItem(
       id: song.id,
       title: song.name,
       artist: song.artist,
       album: song.album,
       artUri: Uri.parse(song.imageUrl),
+      duration: durationSeconds > 0 ? Duration(seconds: durationSeconds) : null,
       extras: {
         'url': url,
         'artistId': song.artistId,

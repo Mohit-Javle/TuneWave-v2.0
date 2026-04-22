@@ -55,39 +55,62 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkLoginStatus() async {
-    await AuthService.instance.init();
-    await Future.delayed(const Duration(seconds: 2));
+    debugPrint("SPLASH: Checking login status...");
+    try {
+      // 1. Initialize Auth Service with timeout
+      await AuthService.instance.init().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint("SPLASH: Auth init timed out or failed: $e");
+    }
+
+    await Future.delayed(const Duration(seconds: 1)); // Reduced delay for faster startup
 
     if (!mounted) return;
 
     final firebaseUser = FirebaseAuth.instance.currentUser;
 
     if (firebaseUser != null) {
-      final user = AuthService.instance.currentUser;
-      if (user == null) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
-        return;
+      // If user profile is null but firebaseUser exists, we likely have a network issue.
+      // We can create a temporary user model from firebaseUser to allow app to open.
+      final String userEmail = firebaseUser.email ?? "";
+
+      // 2. Migration with strict timeout
+      try {
+        await MigrationService().migrateIfNeeded(userEmail).timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint("SPLASH: Migration timed out or failed: $e");
       }
 
-      // Migrate SharedPreferences data to Firestore (no-op if already done)
-      await MigrationService().migrateIfNeeded(user.email);
+      if (!mounted) return;
+
+      final playlistService = Provider.of<PlaylistService>(context, listen: false);
+      final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
+
+      // 3. Load user data (liked songs, playlists) with timeout
+      try {
+        await playlistService.loadUserData(userEmail).timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint("SPLASH: Playlist loading timed out or failed: $e");
+      }
+      
+      try {
+        await themeNotifier.loadTheme(userEmail).timeout(const Duration(seconds: 3));
+      } catch (e) {
+        debugPrint("SPLASH: Theme loading failed: $e");
+      }
 
       if (!mounted) return;
 
-      final playlistService = 
-        Provider.of<PlaylistService>(context, listen: false);
-      final themeNotifier = 
-        Provider.of<ThemeNotifier>(context, listen: false);
-
-      await playlistService.loadUserData(user.email);
-      await themeNotifier.loadTheme(user.email);
-
-      if (!mounted) return;
-
-      final personalizationService = 
-        Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService
-        .isPersonalizationCompleted(user.email);
+      // 4. Personalization check with timeout
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      bool isPersonalized = true; // Assume true if we can't check
+      try {
+        isPersonalized = await personalizationService
+          .isPersonalizationCompleted(userEmail)
+          .timeout(const Duration(seconds: 5));
+      } catch (e) {
+        debugPrint("SPLASH: Personalization check timed out: $e");
+      }
 
       if (!mounted) return;
 

@@ -14,7 +14,8 @@ class PersonalizationService extends ChangeNotifier {
         .doc(email)
         .collection('personalization')
         .doc('data')
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 5));
       return doc.data()?['isCompleted'] ?? false;
     } catch (e) {
       debugPrint('Personalization check failed, falling back to SharedPreferences: $e');

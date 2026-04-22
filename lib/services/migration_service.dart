@@ -33,7 +33,8 @@ class MigrationService {
         .doc(email)
         .collection('profile')
         .doc('data')
-        .set({'migrationCompleted': true}, SetOptions(merge: true));
+        .set({'migrationCompleted': true}, SetOptions(merge: true))
+        .timeout(const Duration(seconds: 5));
 
       debugPrint('MIGRATION: Migration completed successfully for $email');
     } catch (e) {
@@ -94,7 +95,7 @@ class MigrationService {
         'sortId': DateTime.now().millisecondsSinceEpoch,
       }, SetOptions(merge: true));
     }
-    await batch.commit();
+    await batch.commit().timeout(const Duration(seconds: 10));
     debugPrint('MIGRATION: Liked songs sync SUCCESS ✅');
   }
 
@@ -121,7 +122,7 @@ class MigrationService {
           DateTime.now().millisecondsSinceEpoch.toString());
       batch.set(ref, Map<String, dynamic>.from(playlist));
     }
-    await batch.commit();
+    await batch.commit().timeout(const Duration(seconds: 10));
   }
 
   /// Migrates personalization data from SharedPreferences to Firestore.
@@ -147,6 +148,7 @@ class MigrationService {
       .doc(email)
       .collection('personalization')
       .doc('data')
-      .set(data);
+      .set(data)
+      .timeout(const Duration(seconds: 5));
   }
 }

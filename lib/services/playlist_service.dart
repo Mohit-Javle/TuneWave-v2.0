@@ -80,7 +80,8 @@ class PlaylistService with ChangeNotifier {
         .doc(email)
         .collection('likedSongs')
         .orderBy('likedAt', descending: true)
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 10));
       _likedSongs = snapshot.docs
         .map((doc) => SongModel.fromJson(doc.data()))
         .toList();
@@ -98,7 +99,8 @@ class PlaylistService with ChangeNotifier {
         .collection('users')
         .doc(_currentUserEmail)
         .collection('playlists')
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 10));
       _playlists = playlistSnapshot.docs
         .map((doc) => Playlist.fromJson(doc.data()))
         .toList();

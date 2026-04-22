@@ -392,10 +392,6 @@ class SpotifyImportService extends ChangeNotifier {
     };
   }
 
-  double _calculateMatchScore(String targetTrack, String targetArtist, String resTrack, String resArtist) {
-    return _calculateMatchScoreDetailed(targetTrack, targetArtist, resTrack, resArtist)['total']!;
-  }
-
   String _normalize(String input, {bool isSearch = false}) {
     String normalized = input.toLowerCase()
         .replaceAll(RegExp(r'\(.*?\)|\[.*?\]'), '') // remove (feat...) [remix...]

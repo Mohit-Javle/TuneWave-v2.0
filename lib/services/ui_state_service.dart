@@ -1,16 +1,45 @@
 // services/ui_state_service.dart
 
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 /// A service to manage UI state, like the visibility of the mini-player.
 /// This uses a ChangeNotifier to notify listeners of state changes.
 class UiStateService with ChangeNotifier {
+  UiStateService() {
+    _initConnectivity();
+  }
+
+  Future<void> _initConnectivity() async {
+    final connectivity = Connectivity();
+    
+    // Check initial state
+    final results = await connectivity.checkConnectivity();
+    _updateOfflineStatus(results);
+
+    // Listen for changes
+    _connectivitySubscription = connectivity.onConnectivityChanged.listen(_updateOfflineStatus);
+  }
+
+  void _updateOfflineStatus(List<ConnectivityResult> results) {
+    // We are offline if none of the results are wifi, mobile, or ethernet
+    final bool offline = results.every((r) => r == ConnectivityResult.none);
+    if (_isOffline != offline) {
+      _isOffline = offline;
+      notifyListeners();
+    }
+  }
   bool _isForcedHidden = true;
   int _activeModalsCount = 0;
   double _miniPlayerPadding = 0.0;
   bool _isGlobalLocked = true; // Started as locked
   bool _isAppInitialized = false;
   int _currentTabIndex = 0;
+  bool _isOffline = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
+
+  bool get isOffline => _isOffline;
 
   bool get isAppInitialized => _isAppInitialized;
   bool get isGlobalLocked => _isGlobalLocked;
@@ -76,5 +105,10 @@ class UiStateService with ChangeNotifier {
     _isGlobalLocked = true;
     _isForcedHidden = true;
     notifyListeners();
+  }
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

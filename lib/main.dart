@@ -42,6 +42,7 @@ import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/spotify_import_service.dart';
 import 'package:clone_mp/services/api_service.dart';
 import 'package:flutter/services.dart';
+import 'package:clone_mp/widgets/music_toast.dart';
 import 'package:clone_mp/screens/personalization/personalization_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -53,11 +54,20 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
-  
-  // Enable offline persistence
-  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  // Initialize Firebase with timeout and error handling
+  try {
+    await Firebase.initializeApp().timeout(const Duration(seconds: 10));
+    
+    // Enable offline persistence
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    debugPrint("Firebase initialized successfully with offline persistence.");
+  } catch (e) {
+    debugPrint("⚠️ Firebase initialization failed or timed out: $e");
+    // We proceed anyway to allow local playback if possible
+  }
   
   runApp(const AppBootstrapper());
 }
@@ -274,6 +284,8 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   final List<int> _navigationHistory = [0]; // Added to track tab visits
+  bool _wasOffline = false;
+  late final UiStateService _uiStateService;
   
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -288,6 +300,17 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _musicService = Provider.of<MusicService>(context, listen: false);
+    _uiStateService = Provider.of<UiStateService>(context, listen: false);
+    
+    // Check initial state
+    _wasOffline = _uiStateService.isOffline;
+    if (_wasOffline) {
+       WidgetsBinding.instance.addPostFrameCallback((_) {
+         _showOfflineToast();
+       });
+    }
+
+    _uiStateService.addListener(_handleConnectivityChange);
 
     // Mark app as initialized and show the mini player
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -325,8 +348,36 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _uiStateService.removeListener(_handleConnectivityChange);
     _animationController.dispose();
     super.dispose();
+  }
+
+  void _handleConnectivityChange() {
+    if (_uiStateService.isOffline && !_wasOffline) {
+      _showOfflineToast();
+    } else if (!_uiStateService.isOffline && _wasOffline) {
+      _showOnlineToast();
+    }
+    _wasOffline = _uiStateService.isOffline;
+  }
+
+  void _showOfflineToast() {
+    showMusicToast(
+      context, 
+      "You're offline. Playing from downloads.",
+      type: ToastType.info,
+      isBottom: false,
+    );
+  }
+
+  void _showOnlineToast() {
+    showMusicToast(
+      context, 
+      "You're back online!",
+      type: ToastType.success,
+      isBottom: false,
+    );
   }
 
   void _onItemTapped(int index) {

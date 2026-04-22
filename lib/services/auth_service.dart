@@ -22,6 +22,18 @@ class AuthService extends ChangeNotifier {
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser != null && firebaseUser.email != null) {
       _currentUser = await _fetchUserProfile(firebaseUser.email!);
+      
+      // FALLBACK: If Firestore profile fetch failed (offline), create a minimal profile 
+      // from Firebase Auth data so the app doesn't show "Not logged in".
+      if (_currentUser == null) {
+        debugPrint("AuthService: Firestore profile fetch failed, using fallback from Firebase Auth.");
+        _currentUser = UserModel(
+          name: firebaseUser.displayName ?? firebaseUser.email!.split('@')[0],
+          email: firebaseUser.email!,
+          imageUrl: firebaseUser.photoURL ?? '',
+        );
+      }
+      
       _userController.add(_currentUser);
       notifyListeners();
     }
@@ -104,13 +116,16 @@ class AuthService extends ChangeNotifier {
         .doc(email)
         .collection('profile')
         .doc('data')
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 10));
       if (doc.exists && doc.data() != null) {
         return UserModel.fromJson(doc.data()!);
       }
       return null;
     } catch (e) {
-      debugPrint("Error fetching user profile: $e");
+      debugPrint("Error fetching user profile (might be offline): $e");
+      // Return null or handle based on app needs. 
+      // SplashScreen now handles the null case by proceeding with email-only session.
       return null;
     }
   }

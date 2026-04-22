@@ -14,7 +14,8 @@
     <application
         android:label="TuneWave"
         android:name="${applicationName}"
-        android:icon="@mipmap/app_icon">
+        android:icon="@mipmap/app_icon"
+        android:usesCleartextTraffic="true">
         <service android:name="com.ryanheise.audioservice.AudioService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">

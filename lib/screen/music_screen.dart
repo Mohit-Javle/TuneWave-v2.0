@@ -405,9 +405,11 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                             child: Slider(
                               value: sliderValue.clamp(0.0, 1.0),
                               onChanged: (value) {
+                                // Just update local state if needed, but here we let the Notifier handle it
+                              },
+                              onChangeEnd: (value) {
                                 final newPosition = Duration(
-                                  seconds: (totalDuration.inSeconds * value)
-                                      .round(),
+                                  seconds: (totalDuration.inSeconds * value).round(),
                                 );
                                 musicService.seek(newPosition);
                               },
