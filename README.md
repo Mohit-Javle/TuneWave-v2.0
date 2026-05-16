@@ -1,148 +1,123 @@
 # 🎵 TuneWave v2.0
 
-A feature-rich, cross-platform music streaming application built with Flutter.
+A premium, feature-rich music streaming application built with Flutter, designed for a seamless and immersive listening experience.
 
-![Flutter](https://img.shields.io/badge/Flutter-3.0+-blue.svg)
-![Dart](https://img.shields.io/badge/Dart-3.0+-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-Android-green.svg)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Flutter](https://img.shields.io/badge/Flutter-3.0+-blue.svg?style=for-the-badge&logo=flutter)
+![Firebase](https://img.shields.io/badge/Firebase-v11.0+-orange.svg?style=for-the-badge&logo=firebase)
+![Platform](https://img.shields.io/badge/Platform-Android-green.svg?style=for-the-badge&logo=android)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)
 
 ---
 
 ## ✨ Features
 
-🎧 **Stream Music** - High-quality music from JioSaavn API  
-🔍 **Smart Search** - Find songs, artists, and albums instantly  
-🎼 **Lyrics Display** - Real-time synchronized lyrics  
-📱 **Queue Management** - Full control over playback queue  
-🎲 **Smart Shuffle** - Intelligent randomization  
-⏱️ **Recently Played** - Track your listening history  
-💾 **Offline Downloads** - Download songs for offline listening  
-🎨 **Beautiful UI** - Modern design with dark/light themes  
-📋 **Playlists** - Create and manage your collections  
-🔒 **Background Playback** - Music continues when app is minimized  
-🎛️ **Lock Screen Controls** - Control playback from anywhere  
+*   🎧 **High-Fidelity Streaming** - Access millions of tracks via JioSaavn API integrations.
+*   🔍 **Advanced Search** - Instant results for songs, artists, and albums.
+*   🔐 **Secure Authentication** - robust login/signup via **Email** and **Google Sign-In**.
+*   💾 **Smart Offline Mode** - High-speed downloads with background processing for offline listening.
+*   🎼 **Dynamic Lyrics** - Real-time synchronized lyrics for your favorite tracks.
+*   🎨 **Premium UI/UX** - Modern, glassmorphic design with support for vibrant Dark and Light modes.
+*   📋 **Personalized Collections** - Create, manage, and share your own playlists.
+*   🔒 **Background Mastery** - Full background playback with lock screen controls and media notifications.
+*   🎲 **Intelligent Shuffle** - Advanced randomization algorithm for a fresh experience every time.
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Flutter SDK 3.0+
-- Android Studio or VS Code
-- Android SDK (API 21+)
+### 📋 Prerequisites
+- **Flutter SDK**: 3.0.0 or higher
+- **Android Studio / VS Code**: Latest version recommended
+- **Java**: JDK 17 (for Android Gradle builds)
 
-### Installation
+### 🛠️ Setup & Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/TuneWave-v2.0.git
-cd TuneWave-v2.0-main
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/Mohit-Javle/TuneWave-v2.0.git
+   cd TuneWave-v2.0
+   ```
 
-# Install dependencies
-flutter pub get
+2. **Install Dependencies**
+   ```bash
+   flutter pub get
+   ```
 
-# Run the app
-flutter run
-```
+3. **Firebase Configuration**
+   - Place your `google-services.json` in `android/app/src/dev/` and `android/app/src/prod/`.
+   - Ensure SHA-1 and SHA-256 fingerprints are added to your Firebase project for Google Sign-In.
 
-### Build APK
+4. **Run the Application**
+   ```bash
+   # Development Mode
+   flutter run --flavor dev
+   
+   # Production Mode
+   flutter run --flavor prod
+   ```
 
-```bash
-# Debug APK
-flutter build apk --debug
+---
 
-# Release APK (recommended)
-flutter build apk --split-per-abi --release
+## 📦 Building for Release
 
-# App Bundle for Play Store
-flutter build appbundle --release
+To build a production-ready signed APK:
+
+1. Create a `key.properties` file in the `android/` directory:
+   ```properties
+   storePassword=<your-password>
+   keyPassword=<your-password>
+   keyAlias=<your-alias>
+   storeFile=<path-to-keystore>
+   ```
+
+2. Run the build command:
+   ```bash
+   flutter build apk --flavor prod --release
+   ```
+
+---
+
+## 📂 Project Architecture
+
+```text
+lib/
+├── main.dart           # Application entry point with flavor configuration
+├── models/             # Immutable data models (User, Song, Playlist)
+├── screen/             # UI layer (Search, Home, Player, Profile, Auth)
+├── services/           # Business logic (Auth, Audio, Firestore, Download)
+├── widgets/            # Reusable UI components & Design System tokens
+└── theme/              # Centralized theme management (ThemeNotifier)
 ```
 
 ---
 
-## 📖 Documentation
+## 🛡️ Stability & Security
 
-For complete documentation including:
-- Detailed setup instructions
-- Project architecture
-- Optimization guide
-- Troubleshooting
-- Customization options
-- Deployment guide
-
-**👉 See [DOCS.md](DOCS.md)**
-
----
-
-## 📂 Project Structure
-
-```
-TuneWave-v2.0-main/
-├── android/          # Android platform files
-├── lib/
-│   ├── main.dart     # App entry point
-│   ├── models/       # Data models
-│   ├── screen/       # UI screens
-│   ├── services/     # Business logic
-│   └── widgets/      # Reusable components
-├── assets/           # Images, fonts
-├── test/             # Tests
-└── pubspec.yaml      # Dependencies
-```
-
----
-
-## 🔑 Key Technologies
-
-- **Flutter & Dart** - Cross-platform framework
-- **Provider** - State management
-- **audio_service** - Background audio playback
-- **audioplayers** - Audio playback engine
-- **SharedPreferences** - Local storage
-- **JioSaavn API** - Music data source
-
----
-
-## ⚠️ Legal Notice
-
-This project uses an unofficial JioSaavn API for educational purposes. For commercial use, obtain proper licensing or use official APIs.
+TuneWave v2.0 is built with stability in mind:
+- **Null-Safe Network Images**: Robust validation for all remote assets to prevent URI host errors.
+- **Secure Error Handling**: Technical Firebase exceptions are mapped to user-friendly messages.
+- **Memory Optimization**: Efficient audio buffering and image caching.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Please fork the repo and submit a PR for any features or bug fixes.
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
-
----
-
-## 📞 Support
-
-- 🐛 Report bugs: [GitHub Issues](https://github.com/yourusername/TuneWave-v2.0/issues)
-- 📧 Email: support@tunewave.app
-
----
-
-## 🙏 Acknowledgments
-
-- JioSaavn for music data
-- Flutter community
-- All contributors
+Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
 **Made with ❤️ using Flutter**
 
-🎵 **Happy Listening!** 🎵
+🎵 **TuneWave - Your Music, Your Way** 🎵

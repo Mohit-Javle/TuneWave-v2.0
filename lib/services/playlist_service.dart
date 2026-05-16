@@ -35,22 +35,22 @@ class PlaylistService with ChangeNotifier {
   // --- LIKED SONGS ---
   List<SongModel> _likedSongs = [];
   List<SongModel> get likedSongs => _likedSongs;
-  String? _currentUserEmail;
+  String? _currentUserId;
 
   // Load all user data from Firestore
-  Future<void> loadUserData(String userEmail) async {
-    _currentUserEmail = userEmail;
+  Future<void> loadUserData(String userId) async {
+    _currentUserId = userId;
     await _loadLikedSongs();
     await _loadPlaylists();
     notifyListeners();
   }
 
   Future<void> _loadLikedSongs() async {
-    if (_currentUserEmail == null) return;
+    if (_currentUserId == null) return;
     try {
       final snapshot = await FirebaseFirestore.instance
         .collection('users')
-        .doc(_currentUserEmail)
+        .doc(_currentUserId)
         .collection('likedSongs')
         .get();
       _likedSongs = snapshot.docs
@@ -63,11 +63,11 @@ class PlaylistService with ChangeNotifier {
   }
 
   Future<void> _loadPlaylists() async {
-    if (_currentUserEmail == null) return;
+    if (_currentUserId == null) return;
     try {
       final playlistSnapshot = await FirebaseFirestore.instance
         .collection('users')
-        .doc(_currentUserEmail)
+        .doc(_currentUserId)
         .collection('playlists')
         .get();
       _playlists = playlistSnapshot.docs
@@ -81,7 +81,7 @@ class PlaylistService with ChangeNotifier {
 
   // Clear data on logout
   void clearData() {
-    _currentUserEmail = null;
+    _currentUserId = null;
     _likedSongs = [];
     _playlists = [];
     notifyListeners();
@@ -92,7 +92,7 @@ class PlaylistService with ChangeNotifier {
   }
 
   Future<void> toggleLike(SongModel song) async {
-    if (_currentUserEmail == null) return; 
+    if (_currentUserId == null) return; 
 
     if (isLiked(song)) {
       _likedSongs.removeWhere((s) => s.id == song.id);
@@ -102,7 +102,7 @@ class PlaylistService with ChangeNotifier {
       try {
         await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUserEmail)
+          .doc(_currentUserId)
           .collection('likedSongs')
           .doc(song.id)
           .delete();
@@ -117,7 +117,7 @@ class PlaylistService with ChangeNotifier {
       try {
         await FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUserEmail)
+          .doc(_currentUserId)
           .collection('likedSongs')
           .doc(song.id)
           .set({
@@ -136,14 +136,14 @@ class PlaylistService with ChangeNotifier {
   final Uuid _uuid = const Uuid();
 
   Future<void> _savePlaylists() async {
-    if (_currentUserEmail == null) return;
+    if (_currentUserId == null) return;
     try {
       final batch = FirebaseFirestore.instance.batch();
 
       // Delete existing playlists first
       final existing = await FirebaseFirestore.instance
         .collection('users')
-        .doc(_currentUserEmail)
+        .doc(_currentUserId)
         .collection('playlists')
         .get();
       for (final doc in existing.docs) {
@@ -154,7 +154,7 @@ class PlaylistService with ChangeNotifier {
       for (final playlist in _playlists) {
         final ref = FirebaseFirestore.instance
           .collection('users')
-          .doc(_currentUserEmail)
+          .doc(_currentUserId)
           .collection('playlists')
           .doc(playlist.id);
         batch.set(ref, playlist.toJson());

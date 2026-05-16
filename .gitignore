@@ -57,3 +57,8 @@ bugreport-*.zip
 .idea/
 .vscode/
 .continue/
+
+# Sensitive signing files
+android/key.properties
+*.keystore
+*.jks

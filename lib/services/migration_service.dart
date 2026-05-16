@@ -17,29 +17,31 @@ class MigrationService {
   /// 3. VERIFY write succeeded
   /// 4. Set migration flag in Firestore
   /// 5. SharedPreferences data is NOT deleted (kept as fallback)
-  Future<void> migrateIfNeeded(String email) async {
+  Future<void> migrateIfNeeded(String uid, String email) async {
     try {
+      await _migrateEmailToUid(uid, email);
+
       // Check if already migrated in Firestore
       final profileDoc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('profile')
         .doc('data')
         .get();
 
       if (profileDoc.data()?['migrationCompleted'] == true) return;
 
-      debugPrint('MIGRATION: Starting migration for $email');
+      debugPrint('MIGRATION: Starting migration for $email to $uid');
 
       // Run migration for user-scoped data only
-      await _migrateLikedSongs(email);
-      await _migratePlaylists(email);
-      await _migratePersonalization(email);
+      await _migrateLikedSongs(uid, email);
+      await _migratePlaylists(uid, email);
+      await _migratePersonalization(uid, email);
 
       // Mark migration complete in Firestore
       await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('profile')
         .doc('data')
         .set({'migrationCompleted': true}, SetOptions(merge: true));
@@ -52,9 +54,55 @@ class MigrationService {
     }
   }
 
+  Future<void> _migrateEmailToUid(String uid, String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'uid_migration_done_$uid';
+    if (prefs.getBool(key) == true) return;
+
+    final db = FirebaseFirestore.instance;
+    
+    // Subcollections to migrate
+    final subcollections = ['profile', 'likedSongs', 'playlists', 
+                            'personalization', 'listeningHistory'];
+
+    for (final sub in subcollections) {
+      try {
+        final oldCollection = await db
+          .collection('users').doc(email)
+          .collection(sub).get();
+
+        if (oldCollection.docs.isEmpty) continue;
+
+        final batch = db.batch();
+        for (final doc in oldCollection.docs) {
+          final newRef = db
+            .collection('users').doc(uid)
+            .collection(sub).doc(doc.id);
+          batch.set(newRef, doc.data());
+        }
+        await batch.commit();
+
+        // Delete old docs after successful write
+        final deleteBatch = db.batch();
+        for (final doc in oldCollection.docs) {
+          deleteBatch.delete(doc.reference);
+        }
+        await deleteBatch.commit();
+
+        debugPrint('[Migration] Moved $sub from $email → $uid');
+      } catch (e) {
+        debugPrint('[Migration] Failed to migrate $sub: $e');
+        return; // Don't mark complete if any subcollection fails
+      }
+    }
+
+    await prefs.setBool(key, true);
+    debugPrint('[Migration] UID migration complete: $uid');
+  }
+
   /// Migrates liked songs from SharedPreferences to Firestore.
-  /// Key: 'liked_songs_$email' → Firestore: users/{email}/likedSongs/{songId}
-  Future<void> _migrateLikedSongs(String email) async {
+  /// Key: 'liked_songs_$email' → Firestore: users/{uid}/likedSongs/{songId}
+  Future<void> _migrateLikedSongs(String uid, String email) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('liked_songs_$email');
     if (raw == null) return;
@@ -69,7 +117,7 @@ class MigrationService {
     for (final song in songs) {
       final ref = FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('likedSongs')
         .doc(song['id']?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString());
@@ -82,8 +130,8 @@ class MigrationService {
   }
 
   /// Migrates playlists from SharedPreferences to Firestore.
-  /// Key: 'playlists_$email' → Firestore: users/{email}/playlists/{playlistId}
-  Future<void> _migratePlaylists(String email) async {
+  /// Key: 'playlists_$email' → Firestore: users/{uid}/playlists/{playlistId}
+  Future<void> _migratePlaylists(String uid, String email) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('playlists_$email');
     if (raw == null) return;
@@ -98,7 +146,7 @@ class MigrationService {
     for (final playlist in playlists) {
       final ref = FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('playlists')
         .doc(playlist['id']?.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString());
@@ -108,9 +156,9 @@ class MigrationService {
   }
 
   /// Migrates personalization data from SharedPreferences to Firestore.
-  /// Key: 'personalization_data' → Firestore: users/{email}/personalization/data
+  /// Key: 'personalization_data' → Firestore: users/{uid}/personalization/data
   /// This key is global but contains a userId field, so we verify ownership.
-  Future<void> _migratePersonalization(String email) async {
+  Future<void> _migratePersonalization(String uid, String email) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('personalization_data');
     if (raw == null) return;
@@ -127,7 +175,7 @@ class MigrationService {
 
     await FirebaseFirestore.instance
       .collection('users')
-      .doc(email)
+      .doc(uid)
       .collection('personalization')
       .doc('data')
       .set(data);

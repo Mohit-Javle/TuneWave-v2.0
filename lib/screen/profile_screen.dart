@@ -137,7 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               );
               Navigator.pop(context);
             },
-            child: CircleAvatar(backgroundImage: NetworkImage(imageUrl)),
+            child: CircleAvatar(backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) ? NetworkImage(imageUrl) : null),
           );
         },
       ),

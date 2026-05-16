@@ -31,7 +31,7 @@
 }
 
 # Keep custom model classes
--keep class com.example.tunewave.models.** { *; }
+-keep class com.tunewave.app.models.** { *; }
 
 # Preserve line numbers for debugging
 -keepattributes SourceFile,LineNumberTable

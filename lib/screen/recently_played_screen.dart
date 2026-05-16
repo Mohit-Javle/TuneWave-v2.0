@@ -65,7 +65,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                 return ListTile(
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
+                    child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                       song.imageUrl,
                       width: 50,
                       height: 50,
@@ -76,7 +76,7 @@ class RecentlyPlayedScreen extends StatelessWidget {
                         color: Colors.grey,
                         child: const Icon(Icons.music_note),
                       ),
-                    ),
+                    ) : const Icon(Icons.person),
                   ),
                   title: Text(
                     song.name,

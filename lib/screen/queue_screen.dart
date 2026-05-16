@@ -125,7 +125,7 @@ class QueueScreen extends StatelessWidget {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(4),
-                                child: Image.network(
+                                child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                                   song.imageUrl,
                                   width: 50,
                                   height: 50,
@@ -136,7 +136,7 @@ class QueueScreen extends StatelessWidget {
                                     color: Colors.grey,
                                     child: const Icon(Icons.music_note),
                                   ),
-                                ),
+                                ) : const Icon(Icons.person),
                               ),
                               if (isCurrentSong)
                                 Positioned.fill(

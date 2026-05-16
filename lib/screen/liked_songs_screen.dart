@@ -176,7 +176,7 @@ class LikedSongsScreen extends StatelessWidget {
                       ),
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
+                        child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                           song.imageUrl,
                           width: 50,
                           height: 50,
@@ -187,7 +187,7 @@ class LikedSongsScreen extends StatelessWidget {
                             color: veryLightOrange.withOpacity(0.5),
                             child: Icon(Icons.music_note, color: textDark),
                           ),
-                        ),
+                        ) : const Icon(Icons.person),
                       ),
                       title: Text(
                         song.name,

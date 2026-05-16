@@ -407,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 40,
-                                backgroundImage: NetworkImage(artist["image"]!),
+                                backgroundImage: (artist["image"]! != null && artist["image"]!.isNotEmpty) ? NetworkImage(artist["image"]!) : null,
                                 backgroundColor: Colors.grey[800],
                               ),
                               const SizedBox(height: 8),
@@ -519,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
+                  child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                     song.imageUrl,
                     height: 120,
                     width: 150,
@@ -535,7 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       );
                     },
-                  ),
+                  ) : const Icon(Icons.person),
                 ),
                 if (isThisSongPlaying)
                   Positioned(
@@ -607,14 +607,14 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(
+              child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                 song.imageUrl,
                 width: 50,
                 height: 50,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
                     Container(width: 50, height: 50, color: Colors.grey),
-              ),
+              ) : const Icon(Icons.person),
             ),
           ],
         ),
@@ -666,14 +666,14 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(
+              child: (playlist["image"]! != null && playlist["image"]!.isNotEmpty) ? Image.network(
                 playlist["image"]!,
                 height: 120,
                 width: 160,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) =>
                     Container(height: 120, width: 160, color: Colors.grey),
-              ),
+              ) : const Icon(Icons.person),
             ),
             const SizedBox(height: 8),
             Text(
@@ -753,7 +753,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   child: CircleAvatar(
                     backgroundColor: Colors.white,
-                    backgroundImage: NetworkImage(imageUrl),
+                    backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) ? NetworkImage(imageUrl) : null,
                   ),
                 ),
                 decoration: const BoxDecoration(

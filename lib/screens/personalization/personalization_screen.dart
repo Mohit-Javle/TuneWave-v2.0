@@ -49,9 +49,9 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     // Or just mark completed. The prompt says "skips entire personalization".
     // We should probably just mark it done so it doesn't show again.
     final service = Provider.of<PersonalizationService>(context, listen: false);
-    final email = AuthService.instance.currentUser?.email;
-    if (email == null) return;
-    await service.setPersonalizationCompleted(email);
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+    await service.setPersonalizationCompleted(uid);
     
     if (mounted) {
       Navigator.pushReplacementNamed(context, AppRoutes.main);
@@ -73,10 +73,10 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     final service = Provider.of<PersonalizationService>(context, listen: false);
     try {
       // Save data FIRST
-      final email = AuthService.instance.currentUser?.email;
-      if (email == null) return;
+      final uid = AuthService.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return;
       await service.savePersonalizationData(
-        email: email,
+        uid: uid,
         genres: _selectedGenres,
         artists: _selectedArtists,
         moods: _selectedMoods,

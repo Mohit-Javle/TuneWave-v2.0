@@ -166,7 +166,7 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
                             ],
                           ),
                           child: ClipOval(
-                            child: Image.network(
+                            child: (artist.imageUrl != null && artist.imageUrl.isNotEmpty) ? Image.network(
                               artist.imageUrl,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
@@ -175,7 +175,7 @@ class _ArtistSelectionWidgetState extends State<ArtistSelectionWidget> {
                                   child: const Icon(Icons.person, color: Colors.white),
                                 );
                               },
-                            ),
+                            ) : const Icon(Icons.person),
                           ),
                         ),
                         if (isSelected)

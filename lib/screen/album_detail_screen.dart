@@ -73,14 +73,14 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.network(
+                  (widget.album.imageUrl != null && widget.album.imageUrl.isNotEmpty) ? Image.network(
                     widget.album.imageUrl,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                        color: Colors.grey[900], 
                        child: const Center(child: Icon(Icons.album, size: 80, color: Colors.white54)),
                     ),
-                  ),
+                  ) : const Icon(Icons.person),
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(

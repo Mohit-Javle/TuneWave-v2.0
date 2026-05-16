@@ -201,7 +201,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       itemCount: songs.length > 4 ? 4 : songs.length,
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
-        return Image.network(songs[index].imageUrl, fit: BoxFit.cover);
+        return (songs[index].imageUrl != null && songs[index].imageUrl.isNotEmpty) ? Image.network(songs[index].imageUrl, fit: BoxFit.cover) : const Icon(Icons.person);
       },
     );
   }
@@ -313,12 +313,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
           ),
           leading: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Image.network(
+            child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
               song.imageUrl,
               width: 40,
               height: 40,
               fit: BoxFit.cover,
-            ),
+            ) : const Icon(Icons.person),
           ),
           title: Text(song.name),
           subtitle: Text(song.artist),

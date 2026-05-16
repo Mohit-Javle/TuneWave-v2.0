@@ -62,14 +62,14 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       // Migrate SharedPreferences data to Firestore (no-op if already done)
-      await MigrationService().migrateIfNeeded(user.email);
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       final playlistService = 
         Provider.of<PlaylistService>(context, listen: false);
       final themeNotifier = 
         Provider.of<ThemeNotifier>(context, listen: false);
 
-      await playlistService.loadUserData(user.email);
+      await playlistService.loadUserData(user.uid);
       await themeNotifier.loadTheme(user.email);
 
       if (!mounted) return;
@@ -77,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen>
       final personalizationService = 
         Provider.of<PersonalizationService>(context, listen: false);
       final isPersonalized = await personalizationService
-        .isPersonalizationCompleted(user.email);
+        .isPersonalizationCompleted(user.uid);
 
       if (!mounted) return;
 

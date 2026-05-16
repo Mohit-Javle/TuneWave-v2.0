@@ -194,7 +194,7 @@ class _MiniPlayerBar extends StatelessWidget {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
+                                child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                                   song.imageUrl,
                                   width: 45,
                                   height: 45,
@@ -208,7 +208,7 @@ class _MiniPlayerBar extends StatelessWidget {
                                       color: theme.colorScheme.primary,
                                     ),
                                   ),
-                                ),
+                                ) : const Icon(Icons.person),
                               ),
                               const SizedBox(width: 12),
                               Expanded(

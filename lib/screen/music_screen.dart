@@ -344,12 +344,12 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                                     ],
                                   ),
                                   child: ClipOval(
-                                    child: Image.network(
+                                    child: (currentSong.imageUrl != null && currentSong.imageUrl.isNotEmpty) ? Image.network(
                                       currentSong.imageUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, _, _) =>
                                           Container(color: Colors.grey),
-                                    ),
+                                    ) : const Icon(Icons.person),
                                   ),
                                 ),
                               ),

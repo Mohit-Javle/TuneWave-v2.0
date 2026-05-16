@@ -8,6 +8,7 @@ import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/migration_service.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 // This file remains the entry point for your onboarding flow.
 // It now loads the AuthPager which contains the separate Login and Sign Up pages.
@@ -127,7 +128,6 @@ class _LoginPageState extends State<LoginPage> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _isResettingPassword = false;
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -141,17 +141,19 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // Migrate SharedPreferences data to Firestore (no-op if already done)
-      final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      final user = AuthService.instance.currentUser;
+      if (user == null || user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
 
@@ -160,16 +162,82 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         Navigator.pushReplacementNamed(context, AppRoutes.personalization);
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
       );
     }
   }
 
-  void _handleForgotPassword() {
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await AuthService.instance.signInWithGoogle();
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      if (!mounted) return;
+      if (user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
+      setState(() => _isLoading = false);
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
     final email = _emailController.text;
     if (email.isEmpty ||
         !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
@@ -181,31 +249,45 @@ class _LoginPageState extends State<LoginPage> {
       );
       return;
     }
-    setState(() {
-      _isResettingPassword = true;
-    });
-  }
-
-  void _handlePasswordReset() async {
-    if (!_formKey.currentState!.validate()) return;
+    
     setState(() => _isLoading = true);
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Password has been reset successfully! Please log in."),
-        backgroundColor: Colors.green,
-      ),
-    );
-
-    setState(() {
-      _isLoading = false;
-      _isResettingPassword = false;
-      _passwordController.clear();
-      _newPasswordController.clear();
-      _confirmPasswordController.clear();
-    });
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Password reset email sent! Please check your inbox."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong. Please try again'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -227,42 +309,12 @@ class _LoginPageState extends State<LoginPage> {
     Widget switchAuthText;
     String formTitle;
 
-    if (_isResettingPassword) {
-      formTitle = "Reset Your Password";
-      formFields = [
-        _buildEmailField(_emailController),
-        const SizedBox(height: 20),
-        _buildPasswordField(_newPasswordController, isLogin: false),
-        const SizedBox(height: 20),
-        _buildConfirmPasswordField(
-          _confirmPasswordController,
-          _newPasswordController,
-        ),
-        const SizedBox(height: 20),
-      ];
-      authButton = _buildAuthButton(
-        text: "Reset Password",
-        isLoading: _isLoading,
-        onPressed: _handlePasswordReset,
-      );
-      switchAuthText = GestureDetector(
-        onTap: () => setState(() => _isResettingPassword = false),
-        child: const Text(
-          "Back to Login",
-          style: TextStyle(
-            color: Color(0xFFFF6B47),
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-      );
-    } else {
-      formTitle = "Enter your account";
-      formFields = [
-        _buildEmailField(_emailController),
-        const SizedBox(height: 20),
-        _buildPasswordField(_passwordController),
-        Align(
+    formTitle = "Enter your account";
+    formFields = [
+      _buildEmailField(_emailController),
+      const SizedBox(height: 20),
+      _buildPasswordField(_passwordController),
+      Align(
           alignment: Alignment.centerRight,
           child: TextButton(
             onPressed: _handleForgotPassword,
@@ -276,10 +328,19 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ];
-      authButton = _buildAuthButton(
-        text: "Login",
-        isLoading: _isLoading,
-        onPressed: _handleLogin,
+      authButton = Column(
+        children: [
+          _buildAuthButton(
+            text: "Login",
+            isLoading: _isLoading,
+            onPressed: _handleLogin,
+          ),
+          const SizedBox(height: 16),
+          _buildGoogleSignInButton(
+            isLoading: _isLoading,
+            onPressed: _handleGoogleSignIn,
+          ),
+        ],
       );
       switchAuthText = RichText(
         text: TextSpan(
@@ -305,7 +366,7 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
       );
-    }
+    
 
     return AuthScreenWrapper(
       topActionIcon: IconButton(
@@ -366,17 +427,19 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
 
-      // Migrate SharedPreferences data to Firestore (no-op for new users)
-      final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      final user = AuthService.instance.currentUser;
+      if (user == null || user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
-      // Load user data (empty for new user, but sets the email in services)
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      // Load user data (empty for new user, but sets the uid in services)
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -391,11 +454,77 @@ class _SignUpPageState extends State<SignUpPage> {
       } else {
         Navigator.pushReplacementNamed(context, AppRoutes.personalization);
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await AuthService.instance.signInWithGoogle();
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      if (!mounted) return;
+      if (user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
+      setState(() => _isLoading = false);
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
       );
     }
   }
@@ -441,10 +570,19 @@ class _SignUpPageState extends State<SignUpPage> {
       welcomeTitle: "Hello.\nLet's get started!",
       formTitle: "Create your account",
       formFields: formFields,
-      authButton: _buildAuthButton(
-        text: "Sign Up",
-        isLoading: _isLoading,
-        onPressed: _handleSignUp,
+      authButton: Column(
+        children: [
+          _buildAuthButton(
+            text: "Sign Up",
+            isLoading: _isLoading,
+            onPressed: _handleSignUp,
+          ),
+          const SizedBox(height: 16),
+          _buildGoogleSignInButton(
+            isLoading: _isLoading,
+            onPressed: _handleGoogleSignIn,
+          ),
+        ],
       ),
       switchAuthText: RichText(
         text: TextSpan(
@@ -864,6 +1002,57 @@ Widget _buildAuthButton({
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
+            ),
+    ),
+  );
+}
+
+Widget _buildGoogleSignInButton({
+  required bool isLoading,
+  required VoidCallback onPressed,
+}) {
+  return Container(
+    width: double.infinity,
+    height: 56,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade300),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: isLoading ? null : onPressed,
+      child: isLoading
+          ? const SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(color: Colors.black54, strokeWidth: 2),
+            )
+          : const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.g_mobiledata, color: Colors.blue, size: 32),
+                SizedBox(width: 8),
+                Text(
+                  "Continue with Google",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
     ),
   );

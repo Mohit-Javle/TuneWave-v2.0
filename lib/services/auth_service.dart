@@ -3,6 +3,7 @@ import 'package:clone_mp/models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService extends ChangeNotifier {
   // Singleton pattern
@@ -21,7 +22,14 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser != null && firebaseUser.email != null) {
-      _currentUser = await _fetchUserProfile(firebaseUser.email!);
+      _currentUser = await _fetchUserProfile(firebaseUser.uid, firebaseUser.email!);
+      if (_currentUser == null) {
+        _currentUser = UserModel(
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName ?? 'User',
+            email: firebaseUser.email!,
+            imageUrl: firebaseUser.photoURL ?? '');
+      }
       _userController.add(_currentUser);
       notifyListeners();
     }
@@ -31,30 +39,37 @@ class AuthService extends ChangeNotifier {
   Future<UserModel?> signUp(String name, String email, String password) async {
     try {
       UserCredential cred = await FirebaseAuth.instance
-        .createUserWithEmailAndPassword(email: email, password: password);
-      
+          .createUserWithEmailAndPassword(email: email, password: password);
+
       await cred.user?.updateDisplayName(name);
-      
+
+      // Send email verification
+      await cred.user?.sendEmailVerification();
+
       // Save profile to Firestore
+      final uid = cred.user!.uid;
       await FirebaseFirestore.instance
-        .collection('users')
-        .doc(email)
-        .collection('profile')
-        .doc('data')
-        .set({
-          'name': name,
-          'email': email,
-          'imageUrl': '',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      
-      final user = UserModel(name: name, email: email, imageUrl: '');
+          .collection('users')
+          .doc(uid)
+          .collection('profile')
+          .doc('data')
+          .set({
+        'uid': uid,
+        'name': name,
+        'email': email,
+        'imageUrl': '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      final user = UserModel(uid: uid, name: name, email: email, imageUrl: '');
       _currentUser = user;
       _userController.add(_currentUser);
       notifyListeners();
       return user;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -62,14 +77,88 @@ class AuthService extends ChangeNotifier {
   Future<UserModel?> signIn(String email, String password) async {
     try {
       await FirebaseAuth.instance
-        .signInWithEmailAndPassword(email: email, password: password);
-      final userData = await _fetchUserProfile(email);
+          .signInWithEmailAndPassword(email: email, password: password);
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      var userData = await _fetchUserProfile(uid, email);
+      if (userData == null) {
+        userData = UserModel(
+            uid: uid,
+            name: FirebaseAuth.instance.currentUser!.displayName ?? 'User',
+            email: email,
+            imageUrl: FirebaseAuth.instance.currentUser!.photoURL ?? '');
+      }
       _currentUser = userData;
       _userController.add(_currentUser);
       notifyListeners();
       return userData;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // Sign In with Google
+  Future<UserModel?> signInWithGoogle() async {
+    try {
+      final signIn = GoogleSignIn.instance;
+      await signIn.initialize();
+      final GoogleSignInAccount? googleUser = await signIn.authenticate();
+      if (googleUser == null) return null; // The user canceled the sign-in
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential cred =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final firebaseUser = cred.user;
+      if (firebaseUser == null) {
+        throw FirebaseAuthException(
+            code: 'sign-in-failed', message: 'Failed to sign in with Google.');
+      }
+
+      final uid = firebaseUser.uid;
+      final email = firebaseUser.email ?? '';
+      final name = firebaseUser.displayName ?? 'User';
+      final imageUrl = firebaseUser.photoURL ?? '';
+
+      UserModel? userData;
+
+      if (cred.additionalUserInfo?.isNewUser == true) {
+        // Create Firestore profile
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('profile')
+            .doc('data')
+            .set({
+          'uid': uid,
+          'name': name,
+          'email': email,
+          'imageUrl': imageUrl,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        userData =
+            UserModel(uid: uid, name: name, email: email, imageUrl: imageUrl);
+      } else {
+        // Fetch existing
+        userData = await _fetchUserProfile(uid, email);
+        if (userData == null) {
+          userData =
+              UserModel(uid: uid, name: name, email: email, imageUrl: imageUrl);
+        }
+      }
+
+      _currentUser = userData;
+      _userController.add(_currentUser);
+      notifyListeners();
+      return userData;
+    } on FirebaseAuthException {
+      rethrow;
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -81,32 +170,46 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Compatibility alias for logout() if needed, but existing code calls logout()
+  // Compatibility alias for logout()
   Future<void> signOut() async {
     await logout();
   }
-  
-  // Register alias for signUp() - throws exception on failure
+
+  // Register alias for signUp()
   Future<UserModel?> register(String name, String email, String password) {
     return signUp(name, email, password);
   }
 
-  // Login alias for signIn() - throws exception on failure
+  // Login alias for signIn()
   Future<UserModel?> login(String email, String password) {
     return signIn(email, password);
   }
 
   // Fetch profile from Firestore
-  Future<UserModel?> _fetchUserProfile(String email) async {
+  Future<UserModel?> _fetchUserProfile(String uid, String email) async {
     try {
-      final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(email)
-        .collection('profile')
-        .doc('data')
-        .get();
-      if (doc.exists && doc.data() != null) {
-        return UserModel.fromJson(doc.data()!);
+      var ref = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('profile')
+          .doc('data');
+
+      var snap = await ref.get();
+
+      // Fallback: old email-keyed doc (remove after migration is stable)
+      if (!snap.exists) {
+        ref = FirebaseFirestore.instance
+            .collection('users')
+            .doc(email)
+            .collection('profile')
+            .doc('data');
+        snap = await ref.get();
+      }
+
+      if (snap.exists && snap.data() != null) {
+        final data = snap.data()!;
+        data['uid'] = uid; // Ensure uid is present even from legacy docs
+        return UserModel.fromJson(data);
       }
       return null;
     } catch (e) {
@@ -124,55 +227,41 @@ class AuthService extends ChangeNotifier {
     if (user == null || _currentUser == null) return;
 
     try {
-       // Update Firebase Auth Profile
-       if (newName != user.displayName) {
-         await user.updateDisplayName(newName);
-       }
-       if (newImageUrl != null && newImageUrl != user.photoURL) {
-         await user.updatePhotoURL(newImageUrl);
-       }
+      // Update Firebase Auth Profile
+      if (newName != user.displayName) {
+        await user.updateDisplayName(newName);
+      }
+      if (newImageUrl != null && newImageUrl != user.photoURL) {
+        await user.updatePhotoURL(newImageUrl);
+      }
 
-       // Update Firestore
-       final updates = <String, dynamic>{
-         'name': newName,
-       };
-       if (newImageUrl != null) {
-         updates['imageUrl'] = newImageUrl;
-       }
+      // Update Firestore
+      final updates = <String, dynamic>{
+        'name': newName,
+      };
+      if (newImageUrl != null) {
+        updates['imageUrl'] = newImageUrl;
+      }
 
-       await FirebaseFirestore.instance
-        .collection('users')
-        .doc(_currentUser!.email)
-        .collection('profile')
-        .doc('data')
-        .update(updates);
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUser!.uid)
+          .collection('profile')
+          .doc('data')
+          .update(updates);
 
-       // Update local state
-       _currentUser = UserModel(
-         name: newName, 
-         email: _currentUser!.email, 
-         imageUrl: newImageUrl ?? _currentUser!.imageUrl
-       );
-       
-       _userController.add(_currentUser);
-       notifyListeners();
+      // Update local state
+      _currentUser = UserModel(
+          uid: _currentUser!.uid,
+          name: newName,
+          email: _currentUser!.email,
+          imageUrl: newImageUrl ?? _currentUser!.imageUrl);
 
+      _userController.add(_currentUser);
+      notifyListeners();
     } catch (e) {
       debugPrint("Error updating profile: $e");
       throw "Failed to update profile";
-    }
-  }
-
-  // Handle Firebase errors with readable messages
-  String _handleAuthError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found': return 'No account found with this email.';
-      case 'wrong-password': return 'Incorrect password.';
-      case 'email-already-in-use': return 'An account already exists with this email.';
-      case 'weak-password': return 'Password must be at least 6 characters.';
-      case 'invalid-email': return 'Please enter a valid email address.';
-      case 'network-request-failed': return 'No internet connection.';
-      default: return 'Something went wrong. Please try again.';
     }
   }
 }

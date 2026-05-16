@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 class AppRouteObserver extends NavigatorObserver {
   final ValueNotifier<String?> currentRouteNotifier = ValueNotifier(null);
@@ -7,7 +8,9 @@ class AppRouteObserver extends NavigatorObserver {
 
   void _updateRoute(Route<dynamic>? route) {
     if (route is PageRoute && route.settings.name != null) {
-      currentRouteNotifier.value = route.settings.name;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        currentRouteNotifier.value = route.settings.name;
+      });
     }
   }
 

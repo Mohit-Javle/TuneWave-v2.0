@@ -139,14 +139,14 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.network(
+                  (widget.artist['image']! != null && widget.artist['image']!.isNotEmpty) ? Image.network(
                     widget.artist['image']!,
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Colors.grey[900],
                       child: const Center(child: Icon(Icons.person, size: 80, color: Colors.white54)),
                     ),
-                  ),
+                  ) : const Icon(Icons.person),
                   // Gradient overlay for readability
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -312,14 +312,14 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                             const SizedBox(width: 8),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
+                              child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                                 song.imageUrl,
                                 width: 40,
                                 height: 40,
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) => 
                                     Container(width: 40, height: 40, color: Colors.grey[800]),
-                              ),
+                              ) : const Icon(Icons.person),
                             ),
                           ],
                         ),
@@ -434,7 +434,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
+                                child: (album.imageUrl != null && album.imageUrl.isNotEmpty) ? Image.network(
                                   album.imageUrl,
                                   width: 140,
                                   height: 140,
@@ -445,7 +445,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                     color: Colors.grey[800],
                                     child: const Icon(Icons.album, color: Colors.white54, size: 40),
                                   ),
-                                ),
+                                ) : const Icon(Icons.person),
                               ),
                               const SizedBox(height: 8),
                               Text(

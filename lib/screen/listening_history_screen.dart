@@ -67,7 +67,7 @@ class ListeningHistoryScreen extends StatelessWidget {
                   ...songs.map((song) => ListTile(
                     leading: ClipRRect(
                       borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
+                      child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                         song.imageUrl,
                         width: 50,
                         height: 50,
@@ -78,7 +78,7 @@ class ListeningHistoryScreen extends StatelessWidget {
                           color: Colors.grey[800],
                           child: const Icon(Icons.music_note, color: Colors.white54),
                         ),
-                      ),
+                      ) : const Icon(Icons.person),
                     ),
                     title: Text(
                       song.name,

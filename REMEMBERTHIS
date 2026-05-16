@@ -1,0 +1,9 @@
+Before every release:
+1. pubspec.yaml → bump version: X.X.X+N
+2. flutter build apk --flavor prod --release
+3. Share build/app/outputs/flutter-apk/app-prod-release.apk
+
+version: 1.0.1+2
+         ^^^^^  ↑
+     user-facing  internal number
+     (versionName) (versionCode)

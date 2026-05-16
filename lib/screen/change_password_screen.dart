@@ -2,6 +2,7 @@
 // ignore_for_file: use_build_context_synchronously, unused_field, deprecated_member_use
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -28,15 +29,27 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Future<void> _savePassword() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
+    
+    setState(() => _isLoading = true);
 
-      // Simulate network request
-      await Future.delayed(const Duration(seconds: 2));
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.email == null) {
+        throw Exception("No user is currently signed in.");
+      }
 
-      // In a real app, you would call your auth service here.
-      // e.g., AuthService.instance.changePassword(...)
+      // 1. Re-authenticate
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: _currentPasswordController.text,
+      );
+      await user.reauthenticateWithCredential(credential);
 
+      // 2. Update password
+      await user.updatePassword(_newPasswordController.text);
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Password changed successfully!"),
@@ -45,6 +58,34 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       );
 
       Navigator.pop(context);
+    } on FirebaseAuthException catch (e) {
+      String message = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'wrong-password': message = 'Current password is incorrect'; break;
+        case 'weak-password': message = 'New password must be at least 6 characters'; break;
+        case 'requires-recent-login': message = 'Session expired. Please log in again'; break;
+        case 'network-request-failed': message = 'No internet connection'; break;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong. Please try again'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
