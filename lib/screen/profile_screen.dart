@@ -233,6 +233,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+<<<<<<< HEAD
+=======
+        itemCount: avatarImages.length,
+        itemBuilder: (context, index) {
+          final imageUrl = avatarImages[index];
+          return GestureDetector(
+            onTap: () {
+              AuthService.instance.updateUserProfile(
+                newName: AuthService.instance.currentUser!.name,
+                newImageUrl: imageUrl,
+              );
+              Navigator.pop(context);
+            },
+            child: CircleAvatar(backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) ? NetworkImage(imageUrl) : null),
+          );
+        },
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
       ),
     );
   }

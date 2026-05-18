@@ -482,7 +482,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       itemCount: songs.length > 4 ? 4 : songs.length,
       physics: const NeverScrollableScrollPhysics(),
       itemBuilder: (context, index) {
-        return Image.network(
+        return (songs[index].imageUrl != null && songs[index].imageUrl.isNotEmpty) ? Image.network(
           songs[index].imageUrl,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) => Container(
@@ -491,7 +491,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               child: Icon(Icons.error_outline, color: Colors.grey),
             ),
           ),
-        );
+        ) : const Icon(Icons.person);
       },
     );
   }

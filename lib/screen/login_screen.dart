@@ -8,7 +8,11 @@ import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/migration_service.dart';
 import 'package:provider/provider.dart';
+<<<<<<< HEAD
 import 'package:clone_mp/widgets/music_toast.dart';
+=======
+import 'package:firebase_auth/firebase_auth.dart';
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
 // This file remains the entry point for your onboarding flow.
 // It now loads the AuthPager which contains the separate Login and Sign Up pages.
@@ -138,17 +142,19 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-      // Migrate SharedPreferences data to Firestore (no-op if already done)
-      final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      final user = AuthService.instance.currentUser;
+      if (user == null || user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
 
@@ -157,14 +163,38 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+<<<<<<< HEAD
       showMusicToast(context, e.toString(), type: ToastType.error);
+=======
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
     }
   }
 
   Future<void> _handleGoogleSignIn() async {
+<<<<<<< HEAD
     setState(() => _isLoading = true);
     try {
       final userModel = await AuthService.instance.signInWithGoogle();
@@ -282,6 +312,107 @@ class _LoginPageState extends State<LoginPage> {
         );
       },
     );
+=======
+    setState(() => _isLoading = true);
+    try {
+      final user = await AuthService.instance.signInWithGoogle();
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      if (!mounted) return;
+      if (user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
+      setState(() => _isLoading = false);
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text;
+    if (email.isEmpty ||
+        !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter your email address first."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Password reset email sent! Please check your inbox."),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong. Please try again'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
   }
 
   @override
@@ -301,11 +432,16 @@ class _LoginPageState extends State<LoginPage> {
     Widget switchAuthText;
     String formTitle = "Enter your account";
 
+<<<<<<< HEAD
+=======
+    formTitle = "Enter your account";
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
     formFields = [
       _buildEmailField(_emailController),
       const SizedBox(height: 20),
       _buildPasswordField(_passwordController),
       Align(
+<<<<<<< HEAD
         alignment: Alignment.centerRight,
         child: TextButton(
           onPressed: _showForgotPasswordDialog,
@@ -329,6 +465,42 @@ class _LoginPageState extends State<LoginPage> {
         ),
         const SizedBox(height: 16),
         Row(
+=======
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _handleForgotPassword,
+            child: const Text(
+              "Forgot your password?",
+              style: TextStyle(
+                color: Color(0xFFFF6B47),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      ];
+      authButton = Column(
+        children: [
+          _buildAuthButton(
+            text: "Login",
+            isLoading: _isLoading,
+            onPressed: _handleLogin,
+          ),
+          const SizedBox(height: 16),
+          _buildGoogleSignInButton(
+            isLoading: _isLoading,
+            onPressed: _handleGoogleSignIn,
+          ),
+        ],
+      );
+      switchAuthText = RichText(
+        text: TextSpan(
+          text: "Don't have an account? ",
+          style: TextStyle(
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+            fontSize: 16,
+          ),
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
           children: [
             Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
             Padding(
@@ -344,6 +516,7 @@ class _LoginPageState extends State<LoginPage> {
             Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
           ],
         ),
+<<<<<<< HEAD
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
@@ -395,6 +568,10 @@ class _LoginPageState extends State<LoginPage> {
         ],
       ),
     );
+=======
+      );
+    
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
     return AuthScreenWrapper(
       topActionIcon: IconButton(
@@ -455,17 +632,19 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
 
-      // Migrate SharedPreferences data to Firestore (no-op for new users)
-      final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      final user = AuthService.instance.currentUser;
+      if (user == null || user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
-      // Load user data (empty for new user, but sets the email in services)
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      // Load user data (empty for new user, but sets the uid in services)
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
       showMusicToast(context, "Account created successfully!", type: ToastType.success);
@@ -475,10 +654,82 @@ class _SignUpPageState extends State<SignUpPage> {
       } else {
         Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
       }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
+<<<<<<< HEAD
       showMusicToast(context, e.toString(), type: ToastType.error);
+=======
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await AuthService.instance.signInWithGoogle();
+      if (user == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+      if (!mounted) return;
+      if (user.uid.isEmpty) {
+        throw Exception("Failed to load user profile. Please try again.");
+      }
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
+      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
+      setState(() => _isLoading = false);
+      if (isPersonalized) {
+        Navigator.pushReplacementNamed(context, AppRoutes.main);
+      } else {
+        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      String msg = 'Something went wrong. Please try again';
+      switch (e.code) {
+        case 'user-not-found': msg = 'No account found with this email'; break;
+        case 'wrong-password': msg = 'Incorrect password'; break;
+        case 'invalid-credential': msg = 'Incorrect email or password'; break;
+        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
+        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
+        case 'invalid-email': msg = 'Please enter a valid email address'; break;
+        case 'network-request-failed': msg = 'No internet connection'; break;
+        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: Colors.red),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
+      );
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
     }
   }
 
@@ -523,10 +774,19 @@ class _SignUpPageState extends State<SignUpPage> {
       welcomeTitle: "Hello.\nLet's get started!",
       formTitle: "Create your account",
       formFields: formFields,
-      authButton: _buildAuthButton(
-        text: "Sign Up",
-        isLoading: _isLoading,
-        onPressed: _handleSignUp,
+      authButton: Column(
+        children: [
+          _buildAuthButton(
+            text: "Sign Up",
+            isLoading: _isLoading,
+            onPressed: _handleSignUp,
+          ),
+          const SizedBox(height: 16),
+          _buildGoogleSignInButton(
+            isLoading: _isLoading,
+            onPressed: _handleGoogleSignIn,
+          ),
+        ],
       ),
       switchAuthText: RichText(
         text: TextSpan(
@@ -946,6 +1206,57 @@ Widget _buildAuthButton({
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
+            ),
+    ),
+  );
+}
+
+Widget _buildGoogleSignInButton({
+  required bool isLoading,
+  required VoidCallback onPressed,
+}) {
+  return Container(
+    width: double.infinity,
+    height: 56,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.grey.shade300),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      onPressed: isLoading ? null : onPressed,
+      child: isLoading
+          ? const SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(color: Colors.black54, strokeWidth: 2),
+            )
+          : const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.g_mobiledata, color: Colors.blue, size: 32),
+                SizedBox(width: 8),
+                Text(
+                  "Continue with Google",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
     ),
   );

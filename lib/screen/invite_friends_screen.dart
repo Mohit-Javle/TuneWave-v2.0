@@ -240,7 +240,7 @@ class InviteFriendsScreen extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       leading: CircleAvatar(
         radius: 25,
-        backgroundImage: NetworkImage(imageUrl),
+        backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) ? NetworkImage(imageUrl) : null,
       ),
       title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
       subtitle: Text(handle, style: TextStyle(color: textLight)),

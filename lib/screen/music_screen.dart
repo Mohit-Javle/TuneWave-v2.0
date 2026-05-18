@@ -286,6 +286,7 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
             ),
             child: Stack(
               children: [
+<<<<<<< HEAD
                 // Hidden Share Card for capture (Rendered behind the main UI)
                 Opacity(
                   opacity: 0.01, // Nearly invisible but FORCES rendering
@@ -299,6 +300,65 @@ class _MusicPlayerScreenState extends State<MusicPlayerScreen>
                             return ShareCardWidget(
                               song: song,
                               accentColor: accentColor,
+=======
+                _buildTopBar(context, textDark, iconColor, currentSong),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        const SizedBox(height: 20),
+                        AnimatedBuilder(
+                          animation: _rotationController,
+                          builder: (context, child) {
+                            return GestureDetector(
+                              onDoubleTapDown: (details) {
+                                // Determine if tap is on left or right side
+                                final RenderBox box =
+                                    context.findRenderObject() as RenderBox;
+                                final localPosition = box.globalToLocal(
+                                  details.globalPosition,
+                                );
+                                final width = box.size.width;
+
+                                if (localPosition.dx < width / 2) {
+                                  // Left side - previous
+                                  _showSkipFeedback(context, false);
+                                  musicService.playPrevious();
+                                } else {
+                                  // Right side - next
+                                  _showSkipFeedback(context, true);
+                                  musicService.playNext();
+                                }
+                              },
+                              child: Transform.rotate(
+                                angle: _rotationController.value * 2 * math.pi,
+                                child: Container(
+                                  width: 280,
+                                  height: 280,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: theme.shadowColor.withOpacity(
+                                          0.15,
+                                        ),
+                                        blurRadius: 20,
+                                        spreadRadius: 5,
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipOval(
+                                    child: (currentSong.imageUrl != null && currentSong.imageUrl.isNotEmpty) ? Image.network(
+                                      currentSong.imageUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          Container(color: Colors.grey),
+                                    ) : const Icon(Icons.person),
+                                  ),
+                                ),
+                              ),
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                             );
                           }
                         ),

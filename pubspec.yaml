@@ -64,11 +64,15 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   cloud_firestore: ^5.4.4
+<<<<<<< HEAD
   firebase_storage: ^12.3.2
   file_picker: ^10.3.10
   scrollable_positioned_list: ^0.3.8
   connectivity_plus: ^6.0.3
   google_sign_in: 6.2.1
+=======
+  google_sign_in: ^7.2.0
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
 dev_dependencies:
   flutter_launcher_icons: "^0.13.1"

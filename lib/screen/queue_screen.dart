@@ -112,8 +112,89 @@ class QueueScreen extends StatelessWidget {
                     musicService.removeFromQueue(index);
                   },
                   child: Container(
+<<<<<<< HEAD
                     key: tileKey,
                     child: _buildQueueTile(song, isCurrentSong, theme, musicService, index),
+=======
+                    color: isCurrentSong
+                        ? const Color(0xFFFF6600).withOpacity(0.1)
+                        : Colors.transparent,
+                    child: ListTile(
+                      leading: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.drag_handle,
+                            color: theme.colorScheme.onSurface.withOpacity(0.5),
+                          ),
+                          const SizedBox(width: 8),
+                          Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
+                                  song.imageUrl,
+                                  width: 50,
+                                  height: 50,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    width: 50,
+                                    height: 50,
+                                    color: Colors.grey,
+                                    child: const Icon(Icons.music_note),
+                                  ),
+                                ) : const Icon(Icons.person),
+                              ),
+                              if (isCurrentSong)
+                                Positioned.fill(
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Icon(
+                                      Icons.play_arrow,
+                                      color: Colors.white,
+                                      size: 30,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      title: Text(
+                        song.name,
+                        style: TextStyle(
+                          color: isCurrentSong
+                              ? const Color(0xFFFF6600)
+                              : theme.colorScheme.onSurface,
+                          fontWeight: isCurrentSong
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        song.artist,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface.withOpacity(0.7),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: isCurrentSong
+                          ? const Icon(
+                              Icons.equalizer,
+                              color: Color(0xFFFF6600),
+                            )
+                          : null,
+                      onTap: () {
+                        musicService.skipToQueueItem(index);
+                      },
+                    ),
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                   ),
                 );
               },

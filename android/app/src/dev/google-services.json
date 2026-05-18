@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "457738999074",
+    "project_id": "tunewave-dev",
+    "storage_bucket": "tunewave-dev.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:457738999074:android:9a16d8177fb81cede5017b",
+        "android_client_info": {
+          "package_name": "com.tunewave.app.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "457738999074-rp9lvev6tfl10didie7l4jdjdfg6r9jr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tunewave.app.dev",
+            "certificate_hash": "9d2a994383acfd5f3b2a05f8bd88f6294e77ba55"
+          }
+        },
+        {
+          "client_id": "457738999074-53nmtjs13vrhrpdg6ouo1k0eu3gtps7c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD458Uz0o1BBBS9OzJ9u8Y3wjm8z56lZhA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "457738999074-53nmtjs13vrhrpdg6ouo1k0eu3gtps7c.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

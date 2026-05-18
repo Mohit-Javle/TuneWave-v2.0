@@ -175,6 +175,7 @@ class LikedSongsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+<<<<<<< HEAD
                     child: Container(
                       key: tileKey,
                       child: Consumer<MusicService>(
@@ -182,6 +183,27 @@ class LikedSongsScreen extends StatelessWidget {
                           song, textDark, textLight, likedSongs, mService, playlistService, index, theme, 
                           isActive: mService.isActive(song.id)
                         ),
+=======
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 8,
+                      ),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
+                          song.imageUrl,
+                          width: 50,
+                          height: 50,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stack) => Container(
+                            width: 50,
+                            height: 50,
+                            color: veryLightOrange.withOpacity(0.5),
+                            child: Icon(Icons.music_note, color: textDark),
+                          ),
+                        ) : const Icon(Icons.person),
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                       ),
                     ),
                   );
