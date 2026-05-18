@@ -247,14 +247,19 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
+<<<<<<< HEAD
                   Image.network(
                     _artistImageUrl ?? '',
+=======
+                  (widget.artist['image']! != null && widget.artist['image']!.isNotEmpty) ? Image.network(
+                    widget.artist['image']!,
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => Container(
                       color: Colors.grey[900],
                       child: const Center(child: Icon(Icons.person, size: 80, color: Colors.white54)),
                     ),
-                  ),
+                  ) : const Icon(Icons.person),
                   // Gradient overlay for readability
                   const DecoratedBox(
                     decoration: BoxDecoration(
@@ -406,6 +411,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                     final song = visibleSongs[index];
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+<<<<<<< HEAD
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: Image.network(
@@ -415,6 +421,36 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) => 
                               Container(width: 45, height: 45, color: Colors.grey[800]),
+=======
+                      leading: SizedBox(
+                        width: 56,
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 16,
+                              child: Text(
+                                "${index + 1}",
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
+                                song.imageUrl,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => 
+                                    Container(width: 40, height: 40, color: Colors.grey[800]),
+                              ) : const Icon(Icons.person),
+                            ),
+                          ],
+>>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                         ),
                       ),
                       title: Consumer<MusicService>(
@@ -529,7 +565,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
+                                child: (album.imageUrl != null && album.imageUrl.isNotEmpty) ? Image.network(
                                   album.imageUrl,
                                   width: 140,
                                   height: 140,
@@ -540,7 +576,7 @@ class _ArtistDetailScreenState extends State<ArtistDetailScreen> {
                                     color: Colors.grey[800],
                                     child: const Icon(Icons.album, color: Colors.white54, size: 40),
                                   ),
-                                ),
+                                ) : const Icon(Icons.person),
                               ),
                               const SizedBox(height: 8),
                               Text(

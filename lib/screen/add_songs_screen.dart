@@ -163,13 +163,13 @@ class _AddSongsScreenState extends State<AddSongsScreen> {
                       return ListTile(
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: Image.network(
+                          child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                             song.imageUrl,
                             width: 40,
                             height: 40,
                             fit: BoxFit.cover,
                             errorBuilder: (_, _, _) => Container(color: Colors.grey),
-                          ),
+                          ) : const Icon(Icons.person),
                         ),
                         title: Text(song.name),
                         subtitle: Text(song.artist),

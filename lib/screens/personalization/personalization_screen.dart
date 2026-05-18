@@ -49,7 +49,11 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     // We should probably just mark it done so it doesn't show again.
     final service = Provider.of<PersonalizationService>(context, listen: false);
     final uid = AuthService.instance.currentUser?.uid;
+<<<<<<< HEAD
     if (uid == null) return;
+=======
+    if (uid == null || uid.isEmpty) return;
+>>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
     await service.setPersonalizationCompleted(uid);
     
     if (mounted) {
@@ -69,7 +73,11 @@ class _PersonalizationScreenState extends State<PersonalizationScreen> {
     try {
       // Save data FIRST
       final uid = AuthService.instance.currentUser?.uid;
+<<<<<<< HEAD
       if (uid == null) return;
+=======
+      if (uid == null || uid.isEmpty) return;
+>>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
       await service.savePersonalizationData(
         uid: uid,
         genres: _selectedGenres,

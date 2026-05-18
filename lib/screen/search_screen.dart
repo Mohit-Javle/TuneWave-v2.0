@@ -362,7 +362,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 },
                                 child: CircleAvatar(
                                   radius: 25,
-                                  backgroundImage: NetworkImage(artist.imageUrl),
+                                  backgroundImage: (artist.imageUrl != null && artist.imageUrl.isNotEmpty) ? NetworkImage(artist.imageUrl) : null,
                                   backgroundColor: Colors.grey[800],
                                 ),
                               ),
@@ -463,7 +463,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     children: [
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
+                                        child: (album.imageUrl != null && album.imageUrl.isNotEmpty) ? Image.network(
                                           album.imageUrl,
                                           width: 130,
                                           height: 130,
@@ -475,6 +475,11 @@ class _SearchScreenState extends State<SearchScreen> {
                                             color: Colors.grey[800],
                                             child: const Icon(Icons.album, color: Colors.white),
                                           ),
+                                        ) : Container(
+                                            width: 130,
+                                            height: 130,
+                                            color: Colors.grey[800],
+                                            child: const Icon(Icons.album, color: Colors.white),
                                         ),
                                       ),
                                       const SizedBox(height: 8),
@@ -574,14 +579,14 @@ class _SearchScreenState extends State<SearchScreen> {
                               child: ListTile(
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
+                                  child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
                                     song.imageUrl,
                                     width: 50,
                                     height: 50,
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) =>
                                         Container(color: Colors.grey, width: 50, height: 50),
-                                  ),
+                                  ) : Container(color: Colors.grey, width: 50, height: 50),
                                 ),
                                 title: Consumer<MusicService>(
                                   builder: (context, musicService, _) {
