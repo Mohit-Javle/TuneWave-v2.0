@@ -7,11 +7,11 @@ class PersonalizationService extends ChangeNotifier {
 
   /// Check if personalization is already completed for a user.
   /// Falls back to SharedPreferences if Firestore fails (e.g. first launch offline).
-  Future<bool> isPersonalizationCompleted(String email) async {
+  Future<bool> isPersonalizationCompleted(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('personalization')
         .doc('data')
         .get()
@@ -27,14 +27,14 @@ class PersonalizationService extends ChangeNotifier {
 
   /// Save personalization selections to Firestore.
   Future<void> savePersonalizationData({
-    required String email,
+    required String uid,
     required List<String> genres,
     required List<String> artists,
     required List<String> moods,
   }) async {
     try {
       final data = {
-        'userId': email,
+        'userId': uid,
         'genres': genres,
         'artists': artists,
         'moods': moods,
@@ -44,12 +44,12 @@ class PersonalizationService extends ChangeNotifier {
 
       await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('personalization')
         .doc('data')
         .set(data);
 
-      debugPrint('Personalization data saved to Firestore for $email');
+      debugPrint('Personalization data saved to Firestore for $uid');
     } catch (e) {
       debugPrint('Error saving personalization data: $e');
       rethrow;
@@ -57,11 +57,11 @@ class PersonalizationService extends ChangeNotifier {
   }
 
   /// Mark personalization as completed without saving data (e.g. if skipped).
-  Future<void> setPersonalizationCompleted(String email) async {
+  Future<void> setPersonalizationCompleted(String uid) async {
     try {
       await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('personalization')
         .doc('data')
         .set({'isCompleted': true}, SetOptions(merge: true));
@@ -71,11 +71,11 @@ class PersonalizationService extends ChangeNotifier {
   }
 
   /// Reset personalization (for testing/debugging).
-  Future<void> resetPersonalization(String email) async {
+  Future<void> resetPersonalization(String uid) async {
     try {
       await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('personalization')
         .doc('data')
         .delete();
@@ -85,11 +85,11 @@ class PersonalizationService extends ChangeNotifier {
   }
 
   /// Get personalization data for a user.
-  Future<Map<String, dynamic>?> getPersonalizationData(String email) async {
+  Future<Map<String, dynamic>?> getPersonalizationData(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('personalization')
         .doc('data')
         .get();

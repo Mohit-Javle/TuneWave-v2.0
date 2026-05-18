@@ -124,11 +124,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-
   bool _isLoading = false;
-  bool _isResettingPassword = false;
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -144,15 +140,15 @@ class _LoginPageState extends State<LoginPage> {
 
       // Migrate SharedPreferences data to Firestore (no-op if already done)
       final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid, user.email);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
 
@@ -168,41 +164,130 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _handleForgotPassword() {
-    final email = _emailController.text;
-    if (email.isEmpty ||
-        !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      showMusicToast(context, "Please enter your email address first.", type: ToastType.error);
-      return;
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final userModel = await AuthService.instance.signInWithGoogle();
+      if (!mounted) return;
+      
+      if (userModel != null) {
+        // Migrate SharedPreferences data to Firestore (no-op if already done)
+        await MigrationService().migrateIfNeeded(userModel.uid, userModel.email);
+
+        // Load user data
+        await Provider.of<PlaylistService>(context, listen: false).loadUserData(userModel.uid, userModel.email);
+        await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(userModel.email);
+
+        // Check Personalization Status
+        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
+        final isPersonalized = await personalizationService.isPersonalizationCompleted(userModel.uid);
+
+        setState(() => _isLoading = false);
+
+        if (isPersonalized) {
+          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.main, (route) => false);
+        } else {
+          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
+        }
+      } else {
+        // User canceled login
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      showMusicToast(context, e.toString(), type: ToastType.error);
     }
-    setState(() {
-      _isResettingPassword = true;
-    });
   }
 
-  void _handlePasswordReset() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+  void _showForgotPasswordDialog() {
+    final TextEditingController resetEmailController = TextEditingController(text: _emailController.text);
+    bool isSending = false;
 
-    await Future.delayed(const Duration(seconds: 2));
-
-    showMusicToast(context, "Password has been reset successfully! Please log in.", type: ToastType.success);
-
-    setState(() {
-      _isLoading = false;
-      _isResettingPassword = false;
-      _passwordController.clear();
-      _newPasswordController.clear();
-      _confirmPasswordController.clear();
-    });
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              title: Row(
+                children: [
+                  const Icon(Icons.lock_reset_rounded, color: Color(0xFFFF6B47), size: 28),
+                  const SizedBox(width: 10),
+                  const Text("Reset Password", style: TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "We'll send a secure link to your email to reset your password. Please confirm your email below.",
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildEmailField(resetEmailController),
+                ],
+              ),
+              actionsPadding: const EdgeInsets.only(right: 16, bottom: 16, left: 16),
+              actions: [
+                TextButton(
+                  onPressed: isSending ? null : () => Navigator.pop(context),
+                  child: Text("Cancel", style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                ),
+                ElevatedButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                          final email = resetEmailController.text.trim();
+                          if (email.isEmpty || !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+                            showMusicToast(context, "Please enter a valid email address.", type: ToastType.error);
+                            return;
+                          }
+                          setDialogState(() => isSending = true);
+                          try {
+                            await AuthService.instance.sendPasswordResetEmail(email);
+                            if (mounted) {
+                              Navigator.pop(context);
+                              showMusicToast(context, "Password reset link sent to $email", type: ToastType.success);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              setDialogState(() => isSending = false);
+                              showMusicToast(context, e.toString(), type: ToastType.error);
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B47),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isSending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text("Send Link"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -214,87 +299,102 @@ class _LoginPageState extends State<LoginPage> {
     List<Widget> formFields;
     Widget authButton;
     Widget switchAuthText;
-    String formTitle;
+    String formTitle = "Enter your account";
 
-    if (_isResettingPassword) {
-      formTitle = "Reset Your Password";
-      formFields = [
-        _buildEmailField(_emailController),
-        const SizedBox(height: 20),
-        _buildPasswordField(_newPasswordController, isLogin: false),
-        const SizedBox(height: 20),
-        _buildConfirmPasswordField(
-          _confirmPasswordController,
-          _newPasswordController,
-        ),
-        const SizedBox(height: 20),
-      ];
-      authButton = _buildAuthButton(
-        text: "Reset Password",
-        isLoading: _isLoading,
-        onPressed: _handlePasswordReset,
-      );
-      switchAuthText = GestureDetector(
-        onTap: () => setState(() => _isResettingPassword = false),
-        child: const Text(
-          "Back to Login",
-          style: TextStyle(
-            color: Color(0xFFFF6B47),
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
-      );
-    } else {
-      formTitle = "Enter your account";
-      formFields = [
-        _buildEmailField(_emailController),
-        const SizedBox(height: 20),
-        _buildPasswordField(_passwordController),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: _handleForgotPassword,
-            child: const Text(
-              "Forgot your password?",
-              style: TextStyle(
-                color: Color(0xFFFF6B47),
-                fontWeight: FontWeight.w500,
-              ),
+    formFields = [
+      _buildEmailField(_emailController),
+      const SizedBox(height: 20),
+      _buildPasswordField(_passwordController),
+      Align(
+        alignment: Alignment.centerRight,
+        child: TextButton(
+          onPressed: _showForgotPasswordDialog,
+          child: const Text(
+            "Forgot your password?",
+            style: TextStyle(
+              color: Color(0xFFFF6B47),
+              fontWeight: FontWeight.w500,
             ),
           ),
         ),
-      ];
-      authButton = _buildAuthButton(
-        text: "Login",
-        isLoading: _isLoading,
-        onPressed: _handleLogin,
-      );
-      switchAuthText = RichText(
-        text: TextSpan(
-          text: "Don't have an account? ",
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
-            fontSize: 16,
-          ),
+      ),
+    ];
+    
+    authButton = Column(
+      children: [
+        _buildAuthButton(
+          text: "Login",
+          isLoading: _isLoading,
+          onPressed: _handleLogin,
+        ),
+        const SizedBox(height: 16),
+        Row(
           children: [
-            WidgetSpan(
-              child: GestureDetector(
-                onTap: widget.onGoToSignUp,
-                child: const Text(
-                  "Sign up",
-                  style: TextStyle(
-                    color: Color(0xFFFF6B47),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+            Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                "OR",
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
+            Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
           ],
         ),
-      );
-    }
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 55,
+          child: OutlinedButton.icon(
+            onPressed: _isLoading ? null : _handleGoogleSignIn,
+            icon: Image.network(
+              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
+              height: 24,
+            ),
+            label: Text(
+              "Continue with Google",
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2), width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            ),
+          ),
+        ),
+      ],
+    );
+    
+    switchAuthText = RichText(
+      text: TextSpan(
+        text: "Don't have an account? ",
+        style: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.7),
+          fontSize: 16,
+        ),
+        children: [
+          WidgetSpan(
+            child: GestureDetector(
+              onTap: widget.onGoToSignUp,
+              child: const Text(
+                "Sign up",
+                style: TextStyle(
+                  color: Color(0xFFFF6B47),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
 
     return AuthScreenWrapper(
       topActionIcon: IconButton(
@@ -357,15 +457,15 @@ class _SignUpPageState extends State<SignUpPage> {
 
       // Migrate SharedPreferences data to Firestore (no-op for new users)
       final user = AuthService.instance.currentUser!;
-      await MigrationService().migrateIfNeeded(user.email);
+      await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data (empty for new user, but sets the email in services)
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.email);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid, user.email);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.email);
+      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
 
       setState(() => _isLoading = false);
       showMusicToast(context, "Account created successfully!", type: ToastType.success);

@@ -25,13 +25,13 @@ class FollowService extends ChangeNotifier {
     // Check if user is already logged in (it may have been emitted before we subscribed)
     final currentUser = _authService.currentUser;
     if (currentUser != null) {
-      await _syncWithFirestore(currentUser.email);
+      await _syncWithFirestore(currentUser.uid);
     }
     
     // Listen for auth changes to sync with Firestore
     _authService.userStream.listen((user) async {
       if (user != null) {
-        await _syncWithFirestore(user.email);
+        await _syncWithFirestore(user.uid);
       } else {
         _followedArtists.clear();
         await _loadFollowedArtists(); // Reload local data for guest if any
@@ -60,11 +60,11 @@ class FollowService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _syncWithFirestore(String email) async {
+  Future<void> _syncWithFirestore(String uid) async {
     try {
       final doc = await _firestore
           .collection('users')
-          .doc(email)
+          .doc(uid)
           .collection('profile')
           .doc('data')
           .get();
@@ -80,7 +80,7 @@ class FollowService extends ChangeNotifier {
       } else {
         // If Firestore is empty but Local has data, sync local to Firestore
         if (_followedArtists.isNotEmpty) {
-          await _updateFirestoreWholeMap(email);
+          await _updateFirestoreWholeMap(uid);
         }
       }
     } catch (e) {
@@ -88,11 +88,11 @@ class FollowService extends ChangeNotifier {
     }
   }
 
-  Future<void> _updateFirestoreWholeMap(String email) async {
+  Future<void> _updateFirestoreWholeMap(String uid) async {
     try {
       final docRef = _firestore
           .collection('users')
-          .doc(email)
+          .doc(uid)
           .collection('profile')
           .doc('data');
           
@@ -109,11 +109,11 @@ class FollowService extends ChangeNotifier {
     }
   }
 
-  Future<void> _updateFirestoreSingleArtist(String email, String artistId, Map<String, String>? artistData) async {
+  Future<void> _updateFirestoreSingleArtist(String uid, String artistId, Map<String, String>? artistData) async {
     try {
       final docRef = _firestore
           .collection('users')
-          .doc(email)
+          .doc(uid)
           .collection('profile')
           .doc('data');
 
@@ -167,7 +167,7 @@ class FollowService extends ChangeNotifier {
     // If logged in, sync to cloud
     final user = _authService.currentUser;
     if (user != null) {
-      _updateFirestoreSingleArtist(user.email, artistId, artistData);
+      _updateFirestoreSingleArtist(user.uid, artistId, artistData);
     }
   }
 
@@ -186,7 +186,7 @@ class FollowService extends ChangeNotifier {
         
         final user = _authService.currentUser;
         if (user != null) {
-          _updateFirestoreSingleArtist(user.email, artistId, artistData);
+          _updateFirestoreSingleArtist(user.uid, artistId, artistData);
         }
       }
     }

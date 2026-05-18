@@ -76,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // 2. Migration with strict timeout
       try {
-        await MigrationService().migrateIfNeeded(userEmail).timeout(const Duration(seconds: 5));
+        await MigrationService().migrateIfNeeded(firebaseUser.uid, userEmail).timeout(const Duration(seconds: 5));
       } catch (e) {
         debugPrint("SPLASH: Migration timed out or failed: $e");
       }
@@ -88,7 +88,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // 3. Load user data (liked songs, playlists) with timeout
       try {
-        await playlistService.loadUserData(userEmail).timeout(const Duration(seconds: 8));
+        await playlistService.loadUserData(firebaseUser.uid, userEmail).timeout(const Duration(seconds: 8));
       } catch (e) {
         debugPrint("SPLASH: Playlist loading timed out or failed: $e");
       }
@@ -106,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
       bool isPersonalized = true; // Assume true if we can't check
       try {
         isPersonalized = await personalizationService
-          .isPersonalizationCompleted(userEmail)
+          .isPersonalizationCompleted(firebaseUser.uid)
           .timeout(const Duration(seconds: 5));
       } catch (e) {
         debugPrint("SPLASH: Personalization check timed out: $e");

@@ -324,7 +324,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
       // Ensure user data is loaded if they are already logged in
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null && firebaseUser.email != null) {
-        playlistService.loadUserData(firebaseUser.email!);
+        playlistService.loadUserData(firebaseUser.uid, firebaseUser.email!);
       }
     });
 

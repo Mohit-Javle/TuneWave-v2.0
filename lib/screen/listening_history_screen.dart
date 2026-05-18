@@ -22,16 +22,16 @@ class ListeningHistoryScreen extends StatelessWidget {
       ),
       body: Consumer<MusicService>(
         builder: (context, musicService, child) {
-          final email = AuthService.instance.currentUser?.email;
+          final uid = AuthService.instance.currentUser?.uid;
 
-          if (email == null) {
+          if (uid == null) {
             return _buildEmptyState(theme, "Please log in to see history");
           }
 
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
-                .doc(email)
+                .doc(uid)
                 .collection('listeningHistory')
                 .orderBy('playedAt', descending: true)
                 .limit(100)

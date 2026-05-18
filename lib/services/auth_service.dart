@@ -3,6 +3,7 @@ import 'package:clone_mp/models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class AuthService extends ChangeNotifier {
   // Singleton pattern
@@ -21,13 +22,14 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser != null && firebaseUser.email != null) {
-      _currentUser = await _fetchUserProfile(firebaseUser.email!);
+      _currentUser = await _fetchUserProfile(firebaseUser.uid);
       
       // FALLBACK: If Firestore profile fetch failed (offline), create a minimal profile 
       // from Firebase Auth data so the app doesn't show "Not logged in".
       if (_currentUser == null) {
         debugPrint("AuthService: Firestore profile fetch failed, using fallback from Firebase Auth.");
         _currentUser = UserModel(
+          uid: firebaseUser.uid,
           name: firebaseUser.displayName ?? firebaseUser.email!.split('@')[0],
           email: firebaseUser.email!,
           imageUrl: firebaseUser.photoURL ?? '',
@@ -50,7 +52,7 @@ class AuthService extends ChangeNotifier {
       // Save profile to Firestore
       await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(cred.user!.uid)
         .collection('profile')
         .doc('data')
         .set({
@@ -60,7 +62,7 @@ class AuthService extends ChangeNotifier {
           'createdAt': FieldValue.serverTimestamp(),
         });
       
-      final user = UserModel(name: name, email: email, imageUrl: '');
+      final user = UserModel(uid: cred.user!.uid, name: name, email: email, imageUrl: '');
       _currentUser = user;
       _userController.add(_currentUser);
       notifyListeners();
@@ -73,9 +75,21 @@ class AuthService extends ChangeNotifier {
   // Sign In
   Future<UserModel?> signIn(String email, String password) async {
     try {
-      await FirebaseAuth.instance
+      final cred = await FirebaseAuth.instance
         .signInWithEmailAndPassword(email: email, password: password);
-      final userData = await _fetchUserProfile(email);
+      final firebaseUser = cred.user!;
+      UserModel? userData = await _fetchUserProfile(firebaseUser.uid);
+      
+      if (userData == null) {
+        debugPrint("AuthService: Profile not found in Firestore during signIn, using fallback from Firebase Auth.");
+        userData = UserModel(
+          uid: firebaseUser.uid,
+          name: firebaseUser.displayName ?? firebaseUser.email!.split('@')[0],
+          email: firebaseUser.email ?? email,
+          imageUrl: firebaseUser.photoURL ?? '',
+        );
+      }
+
       _currentUser = userData;
       _userController.add(_currentUser);
       notifyListeners();
@@ -98,6 +112,72 @@ class AuthService extends ChangeNotifier {
     await logout();
   }
   
+  // Password Reset
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email.trim());
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
+    }
+  }
+
+  // Google Sign In
+  Future<UserModel?> signInWithGoogle() async {
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut(); // Force account selection dialog
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        return null; // User canceled the sign-in flow
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final User? firebaseUser = userCredential.user;
+      
+      if (firebaseUser != null) {
+        UserModel? userData = await _fetchUserProfile(firebaseUser.uid);
+        
+        // If user profile doesn't exist (new user via Google), create it
+        if (userData == null) {
+          final String name = firebaseUser.displayName ?? firebaseUser.email!.split('@')[0];
+          final String email = firebaseUser.email!;
+          final String photoUrl = firebaseUser.photoURL ?? '';
+          
+          await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .collection('profile')
+            .doc('data')
+            .set({
+              'name': name,
+              'email': email,
+              'imageUrl': photoUrl,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+            
+          userData = UserModel(uid: firebaseUser.uid, name: name, email: email, imageUrl: photoUrl);
+        }
+        
+        _currentUser = userData;
+        _userController.add(_currentUser);
+        notifyListeners();
+        return userData;
+      }
+      return null;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthError(e);
+    } catch (e) {
+      debugPrint("Error in Google Sign In: $e");
+      throw "An error occurred during Google Sign In.";
+    }
+  }
+
   // Register alias for signUp() - throws exception on failure
   Future<UserModel?> register(String name, String email, String password) {
     return signUp(name, email, password);
@@ -109,17 +189,17 @@ class AuthService extends ChangeNotifier {
   }
 
   // Fetch profile from Firestore
-  Future<UserModel?> _fetchUserProfile(String email) async {
+  Future<UserModel?> _fetchUserProfile(String uid) async {
     try {
       final doc = await FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('profile')
         .doc('data')
         .get()
         .timeout(const Duration(seconds: 10));
       if (doc.exists && doc.data() != null) {
-        return UserModel.fromJson(doc.data()!);
+        return UserModel.fromJson(doc.data()!, uid);
       }
       return null;
     } catch (e) {
@@ -161,13 +241,14 @@ class AuthService extends ChangeNotifier {
 
        await FirebaseFirestore.instance
         .collection('users')
-        .doc(_currentUser!.email)
+        .doc(_currentUser!.uid)
         .collection('profile')
         .doc('data')
         .update(updates);
 
        // Update local state
        _currentUser = UserModel(
+         uid: _currentUser!.uid,
          name: newName, 
          email: _currentUser!.email, 
          imageUrl: newImageUrl ?? _currentUser!.imageUrl

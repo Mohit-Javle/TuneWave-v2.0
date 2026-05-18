@@ -458,12 +458,12 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
   }
 
   Future<void> _loadHistory() async {
-    final email = AuthService.instance.currentUser?.email;
-    if (email != null) {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid != null) {
       try {
         final snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .doc(email)
+          .doc(uid)
           .collection('listeningHistory')
           .orderBy('playedAt', descending: true)
           .limit(50)
@@ -524,11 +524,11 @@ class MusicService with ChangeNotifier, WidgetsBindingObserver {
     notifyListeners();
 
     // Non-blocking fire-and-forget write to Firestore
-    final email = AuthService.instance.currentUser?.email;
-    if (email != null) {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid != null) {
       FirebaseFirestore.instance
         .collection('users')
-        .doc(email)
+        .doc(uid)
         .collection('listeningHistory')
         .doc(song.id)
         .set({
