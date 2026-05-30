@@ -1,6 +1,5 @@
 package com.tunewave.app
 
-<<<<<<< HEAD
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -27,8 +26,3 @@ class MainActivity : AudioServiceFragmentActivity() {
         }
     }
 }
-=======
-import com.ryanheise.audioservice.AudioServiceActivity
-
-class MainActivity : AudioServiceActivity()
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df

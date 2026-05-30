@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "160784769423-v4eav0hklq2gtl2vhlescc8fkcct5bp8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tunewave.app",
+            "certificate_hash": "9d2a994383acfd5f3b2a05f8bd88f6294e77ba55"
+          }
+        },
+        {
           "client_id": "160784769423-op7v6b31f6ut1c18s4pjmcple3bcv4ar.apps.googleusercontent.com",
           "client_type": 3
         }

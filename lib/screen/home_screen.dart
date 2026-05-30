@@ -500,173 +500,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-<<<<<<< HEAD
               _buildTopGrid(context),
               ..._buildDynamicShelves(context, theme),
-=======
-              SliverToBoxAdapter(
-                child: Container(
-                  height: 50,
-                  margin: const EdgeInsets.symmetric(vertical: 10),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: genres.length,
-                    itemBuilder: (context, index) {
-                      final genre = genres[index];
-                      final isSelected = selectedFilter == genre;
-                      return Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        child: FilterChip(
-                          label: Text(genre),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              selectedFilter = genre;
-                              // In a real app we would refetch based on genre
-                              // _loadData(genre);
-                            });
-                          },
-                          selectedColor: const Color(0xFFFF6600),
-                          backgroundColor: theme.colorScheme.surface
-                              .withOpacity(0.5),
-                          labelStyle: TextStyle(
-                            color: isSelected
-                                ? Colors.white
-                                : theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          side: BorderSide.none,
-                          showCheckmark: false,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Recently Added / Trending"),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: recentlyPlayed.length,
-                    itemBuilder: (context, index) {
-                      final song = recentlyPlayed[index];
-                      return _buildSongCard(song);
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader(
-                  "Top Charts",
-                  showSeeAll: true,
-                  seeAllText: showAllTopCharts ? "Show Less" : "See More",
-                  onSeeAll: () {
-                    setState(() {
-                      showAllTopCharts = !showAllTopCharts;
-                    });
-                  },
-                ),
-              ),
-              topCharts.isEmpty
-                  ? SliverToBoxAdapter(
-                      child: Container(
-                        height: 100,
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Loading songs...',
-                          style: TextStyle(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final song = topCharts[index];
-                        return _buildSongListTile(song, index + 1);
-                      },
-                      childCount: showAllTopCharts
-                          ? topCharts.length
-                          : (topCharts.length > 5 ? 5 : topCharts.length),
-                      ),
-                    ),
-
-              // --- Popular Artists Section ---
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Your Favorite Artists"),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 140, // Height for avatar + text
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: popularArtists.length,
-                    itemBuilder: (context, index) {
-                      final artist = popularArtists[index];
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, AppRoutes.artist, arguments: artist);
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 16),
-                          width: 100,
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              CircleAvatar(
-                                radius: 40,
-                                backgroundImage: (artist["image"]! != null && artist["image"]!.isNotEmpty) ? NetworkImage(artist["image"]!) : null,
-                                backgroundColor: Colors.grey[800],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                artist["name"]!,
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              SliverToBoxAdapter(
-                child: _buildSectionHeader("Featured Playlists"),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 200,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: featuredPlaylists.length,
-                    itemBuilder: (context, index) {
-                      final playlist = featuredPlaylists[index];
-                      return _buildPlaylistCard(playlist);
-                    },
-                  ),
-                ),
-              ),
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
@@ -1034,34 +869,14 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-<<<<<<< HEAD
                   child: Image.network(
-                    playlist["image"]!,
-=======
-                  child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
-                    song.imageUrl,
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
+                    playlist["image"] ?? '',
                     height: 120,
                     width: 160,
                     fit: BoxFit.cover,
-<<<<<<< HEAD
                     errorBuilder: (context, error, stackTrace) =>
                         Container(height: 120, width: 160, color: Colors.grey),
                   ),
-=======
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 120,
-                        width: 150,
-                        color: Colors.grey[800],
-                        child: Icon(
-                          Icons.music_note,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      );
-                    },
-                  ) : const Icon(Icons.person),
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                 ),
                 if (isActive)
                   Positioned(
@@ -1080,9 +895,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-<<<<<<< HEAD
-=======
-              song.name,
+              playlist["title"] ?? 'Unknown',
               style: TextStyle(
                 color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
@@ -1091,13 +904,11 @@ class _HomeScreenState extends State<HomeScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              song.artist,
+              "${playlist["songCount"]} songs",
               style: TextStyle(
                 color: theme.colorScheme.onSurface.withOpacity(0.7),
                 fontSize: 12,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1107,10 +918,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSongListTile(SongModel song, int rank) {
     final theme = Theme.of(context);
+    final musicService = Provider.of<MusicService>(context);
     final bool isThisSongPlaying =
-        widget.currentSong != null &&
-        widget.currentSong!.id == song.id &&
-        widget.isPlaying;
+        musicService.currentSong != null &&
+        musicService.currentSong!.id == song.id &&
+        musicService.isPlaying;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1171,58 +983,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPlaylistCard(
-    Map<String, String> playlist, {
-    bool useMargin = true,
-  }) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Opening ${playlist["title"]}")));
-      },
-      child: Container(
-        width: 160,
-        margin: useMargin ? const EdgeInsets.only(right: 16) : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: (playlist["image"]! != null && playlist["image"]!.isNotEmpty) ? Image.network(
-                playlist["image"]!,
-                height: 120,
-                width: 160,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Container(height: 120, width: 160, color: Colors.grey),
-              ) : const Icon(Icons.person),
-            ),
-            const SizedBox(height: 8),
-            Text(
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
-              playlist["title"]!,
-              style: TextStyle(
-                color: theme.colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              "${playlist["songCount"]} songs",
-              style: TextStyle(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // Reused drawer code, keeping it minimally changed
   Widget _buildAppDrawer() {
     final theme = Theme.of(context);
@@ -1276,11 +1036,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                   child: CircleAvatar(
                     backgroundColor: Colors.white,
-<<<<<<< HEAD
                     backgroundImage: getAvatarImageProvider(user?.imageUrl, placeholderUrl),
-=======
-                    backgroundImage: (imageUrl != null && imageUrl.isNotEmpty) ? NetworkImage(imageUrl) : null,
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
                   ),
                 ),
                 decoration: const BoxDecoration(

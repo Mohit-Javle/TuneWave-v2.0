@@ -245,28 +245,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
   }
 
-<<<<<<< HEAD
-=======
-  Widget _buildPlaylistArt(List<SongModel> songs) {
-    if (songs.isEmpty) {
-      return Container(
-        color: Colors.grey[800],
-        child: const Icon(Icons.music_note, color: Colors.white, size: 80),
-      );
-    }
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-      ),
-      itemCount: songs.length > 4 ? 4 : songs.length,
-      physics: const NeverScrollableScrollPhysics(),
-      itemBuilder: (context, index) {
-        return (songs[index].imageUrl != null && songs[index].imageUrl.isNotEmpty) ? Image.network(songs[index].imageUrl, fit: BoxFit.cover) : const Icon(Icons.person);
-      },
-    );
-  }
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
-
   SliverToBoxAdapter _buildActionButtons(
     BuildContext context,
     MusicService musicService,
@@ -382,7 +360,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: const Icon(Icons.delete, color: Colors.white),
           ),
-<<<<<<< HEAD
           confirmDismiss: (direction) async {
             // Capture position while still in tree
             final box = tileKey.currentContext?.findRenderObject() as RenderBox?;
@@ -391,31 +368,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               capturedSize = box.size;
             }
             return true;
-=======
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
-              song.imageUrl,
-              width: 40,
-              height: 40,
-              fit: BoxFit.cover,
-            ) : const Icon(Icons.person),
-          ),
-          title: Text(song.name),
-          subtitle: Text(song.artist),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DownloadButton(song: song),
-              IconButton(
-                icon: const Icon(Icons.more_vert),
-                onPressed: () => _showSongOptions(song),
-              ),
-            ],
-          ),
-          onTap: () {
-            musicService.loadPlaylist(playlistSongs, index);
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
           },
           onDismissed: (direction) {
             final playlistService = Provider.of<PlaylistService>(context, listen: false);

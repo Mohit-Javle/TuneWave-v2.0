@@ -8,11 +8,8 @@ import 'package:clone_mp/route_names.dart';
 import 'package:clone_mp/services/personalization_service.dart';
 import 'package:clone_mp/services/migration_service.dart';
 import 'package:provider/provider.dart';
-<<<<<<< HEAD
 import 'package:clone_mp/widgets/music_toast.dart';
-=======
 import 'package:firebase_auth/firebase_auth.dart';
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
 // This file remains the entry point for your onboarding flow.
 // It now loads the AuthPager which contains the separate Login and Sign Up pages.
@@ -142,23 +139,12 @@ class _LoginPageState extends State<LoginPage> {
 
       if (!mounted) return;
 
-<<<<<<< HEAD
       // Migrate SharedPreferences data to Firestore (no-op if already done)
       final user = AuthService.instance.currentUser!;
       await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data
       await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid, user.email);
-=======
-      final user = AuthService.instance.currentUser;
-      if (user == null || user.uid.isEmpty) {
-        throw Exception("Failed to load user profile. Please try again.");
-      }
-      await MigrationService().migrateIfNeeded(user.uid, user.email);
-
-      // Load user data
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
@@ -186,52 +172,7 @@ class _LoginPageState extends State<LoginPage> {
         case 'network-request-failed': msg = 'No internet connection'; break;
         case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-<<<<<<< HEAD
-      showMusicToast(context, e.toString(), type: ToastType.error);
-=======
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
-      );
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
-    }
-  }
-
-  Future<void> _handleGoogleSignIn() async {
-<<<<<<< HEAD
-    setState(() => _isLoading = true);
-    try {
-      final userModel = await AuthService.instance.signInWithGoogle();
-      if (!mounted) return;
-      
-      if (userModel != null) {
-        // Migrate SharedPreferences data to Firestore (no-op if already done)
-        await MigrationService().migrateIfNeeded(userModel.email);
-
-        // Load user data
-        await Provider.of<PlaylistService>(context, listen: false).loadUserData(userModel.email);
-        await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(userModel.email);
-
-        // Check Personalization Status
-        final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-        final isPersonalized = await personalizationService.isPersonalizationCompleted(userModel.email);
-
-        setState(() => _isLoading = false);
-
-        if (isPersonalized) {
-          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.main, (route) => false);
-        } else {
-          Navigator.pushNamedAndRemoveUntil(context, AppRoutes.personalization, (route) => false);
-        }
-      } else {
-        // User canceled login
-        setState(() => _isLoading = false);
-      }
+      showMusicToast(context, msg, type: ToastType.error);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -239,7 +180,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-<<<<<<< HEAD
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
@@ -290,11 +230,11 @@ class _LoginPageState extends State<LoginPage> {
                 borderRadius: BorderRadius.circular(20),
               ),
               backgroundColor: Theme.of(context).colorScheme.surface,
-              title: Row(
+              title: const Row(
                 children: [
-                  const Icon(Icons.lock_reset_rounded, color: Color(0xFFFF6B47), size: 28),
-                  const SizedBox(width: 10),
-                  const Text("Reset Password", style: TextStyle(fontWeight: FontWeight.bold)),
+                  Icon(Icons.lock_reset_rounded, color: Color(0xFFFF6B47), size: 28),
+                  SizedBox(width: 10),
+                  Text("Reset Password", style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
               content: Column(
@@ -358,191 +298,6 @@ class _LoginPageState extends State<LoginPage> {
         );
       },
     );
-=======
-  void _showForgotPasswordDialog() {
-    final TextEditingController resetEmailController = TextEditingController(text: _emailController.text);
-    bool isSending = false;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              title: Row(
-                children: [
-                  const Icon(Icons.lock_reset_rounded, color: Color(0xFFFF6B47), size: 28),
-                  const SizedBox(width: 10),
-                  const Text("Reset Password", style: TextStyle(fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "We'll send a secure link to your email to reset your password. Please confirm your email below.",
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildEmailField(resetEmailController),
-                ],
-              ),
-              actionsPadding: const EdgeInsets.only(right: 16, bottom: 16, left: 16),
-              actions: [
-                TextButton(
-                  onPressed: isSending ? null : () => Navigator.pop(context),
-                  child: Text("Cancel", style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                ),
-                ElevatedButton(
-                  onPressed: isSending
-                      ? null
-                      : () async {
-                          final email = resetEmailController.text.trim();
-                          if (email.isEmpty || !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-                            showMusicToast(context, "Please enter a valid email address.", type: ToastType.error);
-                            return;
-                          }
-                          setDialogState(() => isSending = true);
-                          try {
-                            await AuthService.instance.sendPasswordResetEmail(email);
-                            if (mounted) {
-                              Navigator.pop(context);
-                              showMusicToast(context, "Password reset link sent to $email", type: ToastType.success);
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              setDialogState(() => isSending = false);
-                              showMusicToast(context, e.toString(), type: ToastType.error);
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFF6B47),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: isSending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Text("Send Link"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-=======
-    setState(() => _isLoading = true);
-    try {
-      final user = await AuthService.instance.signInWithGoogle();
-      if (user == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
-      if (!mounted) return;
-      if (user.uid.isEmpty) {
-        throw Exception("Failed to load user profile. Please try again.");
-      }
-      await MigrationService().migrateIfNeeded(user.uid, user.email);
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
-      await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
-      final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
-      setState(() => _isLoading = false);
-      if (isPersonalized) {
-        Navigator.pushReplacementNamed(context, AppRoutes.main);
-      } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.personalization);
-      }
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      String msg = 'Something went wrong. Please try again';
-      switch (e.code) {
-        case 'user-not-found': msg = 'No account found with this email'; break;
-        case 'wrong-password': msg = 'Incorrect password'; break;
-        case 'invalid-credential': msg = 'Incorrect email or password'; break;
-        case 'email-already-in-use': msg = 'An account already exists with this email'; break;
-        case 'weak-password': msg = 'Password must be at least 6 characters'; break;
-        case 'invalid-email': msg = 'Please enter a valid email address'; break;
-        case 'network-request-failed': msg = 'No internet connection'; break;
-        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  Future<void> _handleForgotPassword() async {
-    final email = _emailController.text;
-    if (email.isEmpty ||
-        !RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Please enter your email address first."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    
-    setState(() => _isLoading = true);
-    try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password reset email sent! Please check your inbox."),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      String msg = 'Something went wrong. Please try again';
-      switch (e.code) {
-        case 'user-not-found': msg = 'No account found with this email'; break;
-        case 'invalid-email': msg = 'Please enter a valid email address'; break;
-        case 'network-request-failed': msg = 'No internet connection'; break;
-        case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Something went wrong. Please try again'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
   }
 
   @override
@@ -557,27 +312,11 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
     final themeNotifier = Provider.of<ThemeNotifier>(context, listen: false);
 
-    List<Widget> formFields;
-    Widget authButton;
-    Widget switchAuthText;
-    String formTitle = "Enter your account";
-
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
-    formTitle = "Enter your account";
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
-    formFields = [
+    final formFields = [
       _buildEmailField(_emailController),
       const SizedBox(height: 20),
       _buildPasswordField(_passwordController),
       Align(
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
         alignment: Alignment.centerRight,
         child: TextButton(
           onPressed: _showForgotPasswordDialog,
@@ -586,75 +325,21 @@ class _LoginPageState extends State<LoginPage> {
             style: TextStyle(
               color: Color(0xFFFF6B47),
               fontWeight: FontWeight.w500,
-<<<<<<< HEAD
             ),
           ),
         ),
       ),
     ];
     
-    authButton = Column(
+    final authButton = Column(
       children: [
         _buildAuthButton(
           text: "Login",
           isLoading: _isLoading,
           onPressed: _handleLogin,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         Row(
-=======
-            ),
-          ),
-        ),
-      ),
-    ];
-    
-    authButton = Column(
-      children: [
-        _buildAuthButton(
-          text: "Login",
-          isLoading: _isLoading,
-          onPressed: _handleLogin,
-        ),
-        const SizedBox(height: 16),
-        Row(
-=======
-          alignment: Alignment.centerRight,
-          child: TextButton(
-            onPressed: _handleForgotPassword,
-            child: const Text(
-              "Forgot your password?",
-              style: TextStyle(
-                color: Color(0xFFFF6B47),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ];
-      authButton = Column(
-        children: [
-          _buildAuthButton(
-            text: "Login",
-            isLoading: _isLoading,
-            onPressed: _handleLogin,
-          ),
-          const SizedBox(height: 16),
-          _buildGoogleSignInButton(
-            isLoading: _isLoading,
-            onPressed: _handleGoogleSignIn,
-          ),
-        ],
-      );
-      switchAuthText = RichText(
-        text: TextSpan(
-          text: "Don't have an account? ",
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
-            fontSize: 16,
-          ),
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
           children: [
             Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
             Padding(
@@ -670,38 +355,15 @@ class _LoginPageState extends State<LoginPage> {
             Expanded(child: Divider(color: theme.colorScheme.onSurface.withOpacity(0.2))),
           ],
         ),
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          height: 55,
-          child: OutlinedButton.icon(
-            onPressed: _isLoading ? null : _handleGoogleSignIn,
-            icon: Image.network(
-              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/120px-Google_%22G%22_logo.svg.png',
-              height: 24,
-            ),
-            label: Text(
-              "Continue with Google",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: theme.colorScheme.onSurface.withOpacity(0.2), width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            ),
-          ),
+        const SizedBox(height: 24),
+        _buildGoogleSignInButton(
+          isLoading: _isLoading,
+          onPressed: _handleGoogleSignIn,
         ),
       ],
     );
     
-    switchAuthText = RichText(
+    final switchAuthText = RichText(
       text: TextSpan(
         text: "Don't have an account? ",
         style: TextStyle(
@@ -725,13 +387,6 @@ class _LoginPageState extends State<LoginPage> {
         ],
       ),
     );
-<<<<<<< HEAD
-=======
-=======
-      );
-    
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
 
     return AuthScreenWrapper(
       topActionIcon: IconButton(
@@ -753,7 +408,7 @@ class _LoginPageState extends State<LoginPage> {
       onSwipeDown: widget.onSwipeDown,
       formKey: _formKey,
       welcomeTitle: "Hello.\nWelcome back!",
-      formTitle: formTitle,
+      formTitle: "Enter your account",
       formFields: formFields,
       authButton: authButton,
       switchAuthText: switchAuthText,
@@ -792,23 +447,12 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (!mounted) return;
 
-<<<<<<< HEAD
       // Migrate SharedPreferences data to Firestore (no-op for new users)
       final user = AuthService.instance.currentUser!;
       await MigrationService().migrateIfNeeded(user.uid, user.email);
 
       // Load user data (empty for new user, but sets the email in services)
       await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid, user.email);
-=======
-      final user = AuthService.instance.currentUser;
-      if (user == null || user.uid.isEmpty) {
-        throw Exception("Failed to load user profile. Please try again.");
-      }
-      await MigrationService().migrateIfNeeded(user.uid, user.email);
-
-      // Load user data (empty for new user, but sets the uid in services)
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
->>>>>>> 1671ff7f5cb9a1231988e20b30a32e284b6bec6a
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
 
       // Check Personalization Status
@@ -837,18 +481,11 @@ class _SignUpPageState extends State<SignUpPage> {
         case 'network-request-failed': msg = 'No internet connection'; break;
         case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      showMusicToast(context, msg, type: ToastType.error);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-<<<<<<< HEAD
       showMusicToast(context, e.toString(), type: ToastType.error);
-=======
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
-      );
     }
   }
 
@@ -861,14 +498,14 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
       if (!mounted) return;
-      if (user.uid.isEmpty) {
-        throw Exception("Failed to load user profile. Please try again.");
-      }
+      
       await MigrationService().migrateIfNeeded(user.uid, user.email);
-      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid);
+      await Provider.of<PlaylistService>(context, listen: false).loadUserData(user.uid, user.email);
       await Provider.of<ThemeNotifier>(context, listen: false).loadTheme(user.email);
+      
       final personalizationService = Provider.of<PersonalizationService>(context, listen: false);
       final isPersonalized = await personalizationService.isPersonalizationCompleted(user.uid);
+      
       setState(() => _isLoading = false);
       if (isPersonalized) {
         Navigator.pushReplacementNamed(context, AppRoutes.main);
@@ -889,16 +526,11 @@ class _SignUpPageState extends State<SignUpPage> {
         case 'network-request-failed': msg = 'No internet connection'; break;
         case 'too-many-requests': msg = 'Too many attempts. Please try again later'; break;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: Colors.red),
-      );
+      showMusicToast(context, msg, type: ToastType.error);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong. Please try again'), backgroundColor: Colors.red),
-      );
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
+      showMusicToast(context, e.toString(), type: ToastType.error);
     }
   }
 
@@ -984,6 +616,7 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 }
+
 // SHARED UI WIDGETS AND HELPERS
 
 class AuthScreenWrapper extends StatefulWidget {
@@ -1057,10 +690,8 @@ class _AuthScreenWrapperState extends State<AuthScreenWrapper>
               // Top Welcome Section
               Expanded(
                 flex: 2,
-                // <<< MODIFIED: Wrapped with a Stack for the background icon
                 child: Stack(
                   children: [
-                    // <<< NEW: Background headphone icon
                     Positioned(
                       top: 40,
                       left: -80,
@@ -1085,7 +716,7 @@ class _AuthScreenWrapperState extends State<AuthScreenWrapper>
                             if (widget.topActionIcon != null)
                               Positioned(
                                 top: 0,
-                                left: -12,
+                                  left: -12,
                                 child: widget.topActionIcon!,
                               ),
                             Column(
@@ -1232,26 +863,25 @@ class _PasswordTextFieldState extends State<_PasswordTextField> {
       validator: widget.validator,
       obscureText: _isObscured,
       style: TextStyle(color: theme.colorScheme.onSurface),
-      decoration:
-          _inputDecoration(
-            hintText: widget.hintText,
-            suffixIcon: IconButton(
-              icon: Icon(
-                _isObscured
-                    ? Icons.visibility_off_rounded
-                    : Icons.visibility_rounded,
-                color: theme.unselectedWidgetColor,
-              ),
-              onPressed: () => setState(() => _isObscured = !_isObscured),
-            ),
-          ).copyWith(
-            fillColor: theme.brightness == Brightness.light
-                ? Colors.grey.shade50
-                : theme.colorScheme.onSurface.withOpacity(0.1),
-            hintStyle: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.7),
-            ),
+      decoration: _inputDecoration(
+        hintText: widget.hintText,
+        suffixIcon: IconButton(
+          icon: Icon(
+            _isObscured
+                ? Icons.visibility_off_rounded
+                : Icons.visibility_rounded,
+            color: theme.unselectedWidgetColor,
           ),
+          onPressed: () => setState(() => _isObscured = !_isObscured),
+        ),
+      ).copyWith(
+        fillColor: theme.brightness == Brightness.light
+            ? Colors.grey.shade50
+            : theme.colorScheme.onSurface.withOpacity(0.1),
+        hintStyle: TextStyle(
+          color: theme.colorScheme.onSurface.withOpacity(0.7),
+        ),
+      ),
     );
   }
 }
@@ -1412,12 +1042,12 @@ Widget _buildGoogleSignInButton({
               width: 24,
               child: CircularProgressIndicator(color: Colors.black54, strokeWidth: 2),
             )
-          : const Row(
+          : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.g_mobiledata, color: Colors.blue, size: 32),
-                SizedBox(width: 8),
-                Text(
+                const GoogleGLogo(size: 22),
+                const SizedBox(width: 12),
+                const Text(
                   "Continue with Google",
                   style: TextStyle(
                     fontSize: 16,
@@ -1429,6 +1059,78 @@ Widget _buildGoogleSignInButton({
             ),
     ),
   );
+}
+
+class GoogleGLogo extends StatelessWidget {
+  final double size;
+  const GoogleGLogo({super.key, this.size = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _GoogleGLogoPainter(),
+      ),
+    );
+  }
+}
+
+class _GoogleGLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double cx = w / 2;
+    final double cy = h / 2;
+    final double outerRadius = w / 2;
+    final double thickness = w * 0.28;
+    final double strokeWidth = thickness;
+    final double arcRadius = outerRadius - strokeWidth / 2;
+    final Rect rect = Rect.fromCircle(center: Offset(cx, cy), radius: arcRadius);
+    
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.butt
+      ..isAntiAlias = true;
+
+    // Red (Top): starts at 220 deg (3.84 rad) and sweep 95 deg (1.66 rad), ends at 315 deg (5.50 rad)
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, 3.84, 1.66, false, paint);
+
+    // Yellow (Left): starts at 140 deg (2.44 rad) and sweep 80 deg (1.40 rad), ends at 220 deg (3.84 rad)
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, 2.44, 1.40, false, paint);
+
+    // Green (Bottom): starts at 45 deg (0.78 rad) and sweep 95 deg (1.66 rad), ends at 140 deg (2.44 rad)
+    paint.color = const Color(0xFF34A853);
+    canvas.drawArc(rect, 0.78, 1.66, false, paint);
+
+    // Blue (Right segment below the horizontal bar): starts at 0 deg (0.0 rad) and sweep 45 deg (0.78 rad)
+    paint.color = const Color(0xFF4285F4);
+    canvas.drawArc(rect, 0.0, 0.78, false, paint);
+
+    // Blue Horizontal Bar
+    final Paint fillPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+      
+    final double barLeft = cx;
+    final double barTop = cy - strokeWidth / 2;
+    final double barWidth = outerRadius;
+    final double barHeight = strokeWidth;
+    
+    canvas.drawRect(
+      Rect.fromLTWH(barLeft, barTop, barWidth, barHeight),
+      fillPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class SwipeUpWelcomeScreen extends StatefulWidget {

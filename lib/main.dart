@@ -47,6 +47,7 @@ import 'package:clone_mp/screens/personalization/personalization_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Global Key for Navigation
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -64,6 +65,9 @@ Future<void> main() async {
       cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
     );
     debugPrint("Firebase initialized successfully with offline persistence.");
+    
+    // Run one-time migration for existing users to enable Firestore Console sorting
+    _migrateExistingUsersToRoot();
   } catch (e) {
     debugPrint("⚠️ Firebase initialization failed or timed out: $e");
     // We proceed anyway to allow local playback if possible
@@ -504,5 +508,52 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+}
+
+/// One-time background migration to copy existing users' nested profile/data to the root document.
+Future<void> _migrateExistingUsersToRoot() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    const migrationKey = 'existing_users_to_root_done';
+    if (prefs.getBool(migrationKey) == true) {
+      debugPrint("MIGRATION: Existing users already migrated to root. Skipping.");
+      return;
+    }
+
+    debugPrint("MIGRATION: Starting one-time user migration...");
+    final db = FirebaseFirestore.instance;
+    final profileSnap = await db.collectionGroup('profile').get();
+
+    if (profileSnap.docs.isEmpty) {
+      debugPrint("MIGRATION: No existing user profiles found to migrate.");
+      await prefs.setBool(migrationKey, true);
+      return;
+    }
+
+    final batch = db.batch();
+    int count = 0;
+
+    for (final doc in profileSnap.docs) {
+      final rootUserRef = doc.reference.parent.parent;
+      if (rootUserRef == null) continue;
+
+      final data = doc.data();
+      final rootData = {
+        'uid': data['uid'] ?? rootUserRef.id,
+        'name': data['name'] ?? 'User',
+        'email': data['email'] ?? '',
+        'createdAt': data['createdAt'] ?? FieldValue.serverTimestamp(),
+      };
+
+      batch.set(rootUserRef, rootData, SetOptions(merge: true));
+      count++;
+    }
+
+    await batch.commit();
+    await prefs.setBool(migrationKey, true);
+    debugPrint("MIGRATION: Successfully migrated $count existing users to root! 🎉");
+  } catch (e) {
+    debugPrint("MIGRATION: Error migrating existing users to root: $e");
   }
 }

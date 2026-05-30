@@ -1,8 +1,8 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/music_service.dart';
 import '../services/auth_service.dart';
+import '../models/song_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -45,7 +45,6 @@ class ListeningHistoryScreen extends StatelessWidget {
                 return _buildEmptyState(theme, "Error loading history");
               }
 
-<<<<<<< HEAD
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return _buildEmptyState(theme, "No listening history yet");
               }
@@ -121,64 +120,6 @@ class ListeningHistoryScreen extends StatelessWidget {
                     ],
                   );
                 },
-=======
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      dateKey,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  ...songs.map((song) => ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: (song.imageUrl != null && song.imageUrl.isNotEmpty) ? Image.network(
-                        song.imageUrl,
-                        width: 50,
-                        height: 50,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 50,
-                          height: 50,
-                          color: Colors.grey[800],
-                          child: const Icon(Icons.music_note, color: Colors.white54),
-                        ),
-                      ) : const Icon(Icons.person),
-                    ),
-                    title: Text(
-                      song.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: const Icon(Icons.play_circle_outline, color: Color(0xFFFF6600)),
-                    onTap: () {
-                      // Find the original index of this song in the full history list
-                      // or just clear playlist and play this one for simplicity in history context
-                      musicService.loadPlaylist([song], 0);
-                    },
-                  )),
-                ],
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
               );
             },
           );

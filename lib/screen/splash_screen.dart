@@ -81,7 +81,6 @@ class _SplashScreenState extends State<SplashScreen>
         debugPrint("SPLASH: Migration timed out or failed: $e");
       }
 
-<<<<<<< HEAD
       if (!mounted) return;
 
       final playlistService = Provider.of<PlaylistService>(context, listen: false);
@@ -112,25 +111,6 @@ class _SplashScreenState extends State<SplashScreen>
       } catch (e) {
         debugPrint("SPLASH: Personalization check timed out: $e");
       }
-=======
-      // Migrate SharedPreferences data to Firestore (no-op if already done)
-      await MigrationService().migrateIfNeeded(user.uid, user.email);
-
-      final playlistService = 
-        Provider.of<PlaylistService>(context, listen: false);
-      final themeNotifier = 
-        Provider.of<ThemeNotifier>(context, listen: false);
-
-      await playlistService.loadUserData(user.uid);
-      await themeNotifier.loadTheme(user.email);
-
-      if (!mounted) return;
-
-      final personalizationService = 
-        Provider.of<PersonalizationService>(context, listen: false);
-      final isPersonalized = await personalizationService
-        .isPersonalizationCompleted(user.uid);
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
       if (!mounted) return;
 

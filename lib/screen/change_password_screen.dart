@@ -3,10 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-<<<<<<< HEAD
 import 'package:clone_mp/widgets/music_toast.dart';
-=======
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -37,99 +34,43 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     
     setState(() => _isLoading = true);
 
-<<<<<<< HEAD
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null && user.email != null) {
-          // Verify current password first
-          final cred = EmailAuthProvider.credential(
-            email: user.email!, 
-            password: _currentPasswordController.text
-          );
-          
-          await user.reauthenticateWithCredential(cred);
-          
-          // Update to new password
-          await user.updatePassword(_newPasswordController.text);
-          
-          if (!mounted) return;
-          showMusicToast(context, "Password changed successfully!", type: ToastType.success);
-          Navigator.pop(context);
-        } else {
-          throw Exception("User not logged in.");
-        }
-      } catch (e) {
-        if (!mounted) return;
-        String errorMessage = "Failed to change password.";
-        if (e is FirebaseAuthException) {
-          if (e.code == 'invalid-credential') {
-            errorMessage = "Current password is incorrect.";
-          } else {
-            errorMessage = e.message ?? errorMessage;
-          }
-        } else {
-          errorMessage = e.toString();
-        }
-        
-        showMusicToast(context, errorMessage, type: ToastType.error);
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
-=======
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null || user.email == null) {
-        throw Exception("No user is currently signed in.");
+      if (user != null && user.email != null) {
+        // Verify current password first
+        final cred = EmailAuthProvider.credential(
+          email: user.email!, 
+          password: _currentPasswordController.text
+        );
+        
+        await user.reauthenticateWithCredential(cred);
+        
+        // Update to new password
+        await user.updatePassword(_newPasswordController.text);
+        
+        if (!mounted) return;
+        showMusicToast(context, "Password changed successfully!", type: ToastType.success);
+        Navigator.pop(context);
+      } else {
+        throw Exception("User not logged in.");
       }
-
-      // 1. Re-authenticate
-      final credential = EmailAuthProvider.credential(
-        email: user.email!,
-        password: _currentPasswordController.text,
-      );
-      await user.reauthenticateWithCredential(credential);
-
-      // 2. Update password
-      await user.updatePassword(_newPasswordController.text);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password changed successfully!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pop(context);
-    } on FirebaseAuthException catch (e) {
-      String message = 'Something went wrong. Please try again';
-      switch (e.code) {
-        case 'wrong-password': message = 'Current password is incorrect'; break;
-        case 'weak-password': message = 'New password must be at least 6 characters'; break;
-        case 'requires-recent-login': message = 'Session expired. Please log in again'; break;
-        case 'network-request-failed': message = 'No internet connection'; break;
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: Colors.red,
-        ),
-      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Something went wrong. Please try again'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      String errorMessage = "Failed to change password.";
+      if (e is FirebaseAuthException) {
+        if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+          errorMessage = "Current password is incorrect.";
+        } else {
+          errorMessage = e.message ?? errorMessage;
+        }
+      } else {
+        errorMessage = e.toString();
+      }
+      
+      showMusicToast(context, errorMessage, type: ToastType.error);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
->>>>>>> c914e5c5b1c17aa2ececcad13b94a5a9d492e9df
       }
     }
   }
