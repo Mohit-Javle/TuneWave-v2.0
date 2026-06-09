@@ -2,8 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/spotify_import_service.dart';
 
-class SpotifyImportSheet extends StatelessWidget {
+class SpotifyImportSheet extends StatefulWidget {
   const SpotifyImportSheet({super.key});
+
+  @override
+  State<SpotifyImportSheet> createState() => _SpotifyImportSheetState();
+}
+
+class _SpotifyImportSheetState extends State<SpotifyImportSheet> {
+  final TextEditingController _linkController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final service = Provider.of<SpotifyImportService>(context, listen: false);
+    final status = service.progressNotifier.value.status;
+    if (status == ImportStatus.complete || status == ImportStatus.error) {
+      service.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +40,12 @@ class SpotifyImportSheet extends StatelessWidget {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
           child: ValueListenableBuilder<ImportProgress>(
             valueListenable: importService.progressNotifier,
             builder: (context, progress, child) {
@@ -75,70 +103,63 @@ class SpotifyImportSheet extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 24),
-        _buildStep(1, "Visit exportify.net on your browser."),
-        _buildStep(2, "Log in with your Spotify account."),
-        _buildStep(3, "Select your playlist and click 'Export'."),
-        _buildStep(4, "Come back here and select the downloaded CSV."),
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => service.openExportify(),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: const Text("Open Exportify"),
-              ),
+        TextField(
+          controller: _linkController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: "Paste Spotify playlist link...",
+            prefixIcon: const Icon(Icons.link_rounded),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => service.startImport(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1DB954),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-                child: const Text("Select CSV File"),
-              ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF1DB954), width: 2),
             ),
-          ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          "Supports open.spotify.com and spotify.link URLs",
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              final url = _linkController.text.trim();
+              if (url.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Please paste a Spotify playlist link")),
+                );
+                return;
+              }
+              service.startImport(url);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1DB954),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 0,
+            ),
+            child: const Text(
+              "Import from Spotify",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ),
         ),
         const SizedBox(height: 16),
       ],
     );
   }
 
-  Widget _buildStep(int num, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 12,
-            backgroundColor: const Color(0xFFFF6600).withValues(alpha: 0.1),
-            child: Text(
-              num.toString(),
-              style: const TextStyle(color: Color(0xFFFF6600), fontSize: 12, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
-        ],
-      ),
-    );
-  }
-
   Widget _buildProgressView(BuildContext context, ImportProgress progress, ThemeData theme) {
     String statusText = "Preparing...";
-    if (progress.status == ImportStatus.picking) statusText = "Waiting for file...";
-    if (progress.status == ImportStatus.parsing) statusText = "Reading CSV data...";
-    if (progress.status == ImportStatus.searching) statusText = "Searching songs on JioSaavn...";
+    if (progress.status == ImportStatus.picking) statusText = "Resolving Spotify link...";
+    if (progress.status == ImportStatus.parsing) statusText = "Fetching Spotify playlist...";
+    if (progress.status == ImportStatus.searching) statusText = "Searching songs on Tunewave...";
     if (progress.status == ImportStatus.saving) statusText = "Saving playlist to Cloud...";
 
     return Column(
@@ -221,7 +242,10 @@ class SpotifyImportSheet extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Provider.of<SpotifyImportService>(context, listen: false).reset();
+                  Navigator.pop(context);
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF6600),
                   foregroundColor: Colors.white,
@@ -261,7 +285,10 @@ class SpotifyImportSheet extends StatelessWidget {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  service.reset();
+                  Navigator.pop(context);
+                },
                 child: const Text("Close"),
               ),
             ),

@@ -94,11 +94,37 @@ class AuthService extends ChangeNotifier {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       var userData = await _fetchUserProfile(uid, email);
       if (userData == null) {
+        final name = FirebaseAuth.instance.currentUser!.displayName ?? 'User';
+        final imageUrl = FirebaseAuth.instance.currentUser!.photoURL ?? '';
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set({
+          'uid': uid,
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('profile')
+            .doc('data')
+            .set({
+          'uid': uid,
+          'name': name,
+          'email': email,
+          'imageUrl': imageUrl,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
         userData = UserModel(
             uid: uid,
-            name: FirebaseAuth.instance.currentUser!.displayName ?? 'User',
+            name: name,
             email: email,
-            imageUrl: FirebaseAuth.instance.currentUser!.photoURL ?? '');
+            imageUrl: imageUrl);
       }
       _currentUser = userData;
       _userController.add(_currentUser);
@@ -139,9 +165,9 @@ class AuthService extends ChangeNotifier {
       final name = firebaseUser.displayName ?? 'User';
       final imageUrl = firebaseUser.photoURL ?? '';
 
-      UserModel? userData;
+      UserModel? userData = await _fetchUserProfile(uid, email);
 
-      if (cred.additionalUserInfo?.isNewUser == true) {
+      if (cred.additionalUserInfo?.isNewUser == true || userData == null) {
         // 1. Create root Firestore profile
         await FirebaseFirestore.instance
             .collection('users')
@@ -168,13 +194,6 @@ class AuthService extends ChangeNotifier {
         });
         userData =
             UserModel(uid: uid, name: name, email: email, imageUrl: imageUrl);
-      } else {
-        // Fetch existing
-        userData = await _fetchUserProfile(uid, email);
-        if (userData == null) {
-          userData =
-              UserModel(uid: uid, name: name, email: email, imageUrl: imageUrl);
-        }
       }
 
       _currentUser = userData;
